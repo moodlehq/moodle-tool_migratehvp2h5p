@@ -1,0 +1,240 @@
+<?php
+// This file is part of Moodle - http://moodle.org/
+//
+// Moodle is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Moodle is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+
+/**
+ * View HVP activities to migrate.
+ *
+ * @package     tool_migratehvp2h5p
+ * @copyright   2020 Sara Arjona <sara@moodle.com>
+ * @license     http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+
+namespace tool_migratehvp2h5p\output;
+
+use html_writer;
+use moodle_url;
+use stdClass;
+use table_sql;
+
+defined('MOODLE_INTERNAL') || die();
+
+global $CFG;
+require_once($CFG->dirroot.'/lib/tablelib.php');
+
+/**
+ * Class hvpactivities_table
+ *
+ * @package     tool_migratehvp2h5p
+ * @copyright   2020 Sara Arjona <sara@moodle.com>
+ * @license     http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+class hvpactivities_table extends table_sql {
+
+    /**
+     * Constructor.
+     *
+     */
+    public function __construct() {
+        parent::__construct('tool_migratehvp2h5p_hvpactivities_table');
+
+        // Define columns in the table.
+        $this->define_table_columns();
+
+        // Define configs.
+        $this->define_table_configs();
+    }
+
+
+    /**
+     * Setup the headers for the table.
+     */
+    protected function define_table_columns() {
+        $checkboxattrs = [
+            'title' => get_string('selectall'),
+            'data-action' => 'selectall'
+        ];
+
+        // TODO: Display only the mod_hvp contents to be migrated (looking at the event logs table) or add a column to display
+        // if the mod_hvp content has been migrated (and also a filter to display only the contents to be migrated).
+        $columnheaders = [
+            'select' => html_writer::checkbox('selectall', 1, false, null, $checkboxattrs),
+            'id' => get_string('id', 'tool_migratehvp2h5p'),
+            'course' => get_string('course'),
+            'name' => get_string('name'),
+            'contenttype' => get_string('contenttype', 'tool_migratehvp2h5p'),
+            'graded' => get_string('graded', 'tool_migratehvp2h5p'),
+            'attempted' => get_string('attempted', 'tool_migratehvp2h5p'),
+            'savedstate' => get_string('savedstate', 'tool_migratehvp2h5p'),
+        ];
+
+        $this->define_columns(array_keys($columnheaders));
+        $this->define_headers(array_values($columnheaders));
+    }
+
+    /**
+     * Define table configs.
+     */
+    protected function define_table_configs() {
+        $this->collapsible(false);
+        $this->sortable(true, 'name', SORT_ASC);
+        $this->pageable(true);
+        $this->no_sorting('select');
+        $this->no_sorting('graded');
+        $this->no_sorting('attempted');
+        $this->no_sorting('savedstate');
+    }
+
+    /**
+     * The select column.
+     *
+     * @param stdClass $data The row data.
+     * @return string
+     * @throws \moodle_exception
+     * @throws coding_exception
+     */
+    public function col_select(stdClass $data):string {
+        $stringdata = [
+            'activityname' => $data->name,
+        ];
+
+        return \html_writer::checkbox('activityids[]', $data->id, false, '',
+                ['class' => 'selecthvpactivities', 'title' => get_string('selecthvpactivity',
+                'tool_migratehvp2h5p', $stringdata)]);
+    }
+
+    /**
+     * The graded column, to display the total of users who have a grade for each HVP activity.
+     *
+     * @param stdClass $data The row data.
+     * @return string
+     * @throws \moodle_exception
+     * @throws coding_exception
+     */
+    public function col_graded(stdClass $data): string {
+        global $DB;
+
+        $sql = "SELECT COUNT(*)
+                  FROM {grade_grades} gg
+                  JOIN mdl_grade_items gi ON gi.id = gg.itemid AND gi.iteminstance = :hvpid
+                   AND gi.courseid = :courseid AND gi.itemtype = 'mod' AND gi.itemmodule = 'hvp'";
+        $params = ['hvpid' => $data->id, 'courseid' => $data->courseid];
+        return $DB->count_records_sql($sql, $params);
+    }
+
+    /**
+     * The attempted column, to display the users with xAPI logs.
+     *
+     * @param stdClass $data The row data.
+     * @return string
+     * @throws \moodle_exception
+     * @throws coding_exception
+     */
+    public function col_attempted(stdClass $data): string {
+        global $DB;
+
+        $sql = "SELECT COUNT(*)
+                  FROM {hvp} h
+                  JOIN {hvp_xapi_results} hx ON hx.content_id = h.id AND hx.parent_id IS NULL
+                 WHERE h.id = :hvpid";
+        $params['hvpid'] = $data->id;
+        return $DB->count_records_sql($sql, $params);
+    }
+
+    /**
+     * The name column, to add a link to the HVP activity.
+     *
+     * @param stdClass $data The row data.
+     * @return string
+     * @throws \moodle_exception
+     * @throws coding_exception
+     */
+    public function col_name(stdClass $data): string {
+        $url = new moodle_url('/mod/hvp/view.php', ['id' => $data->instanceid]);
+        return html_writer::link($url, format_string($data->name), ['target' => '_blank']);
+    }
+
+    /**
+     * Builds the SQL query.
+     *
+     * @param  bool $count When true, return the count SQL.
+     * @return array containing sql to use and an array of params.
+     */
+    protected function get_sql_and_params(bool $count = false): array {
+        $groupbyfields = 'h.id, h.course, c.fullname, h.name, hl.machine_name, cm.id';
+        $fields = 'h.id, h.course as courseid, c.fullname as course, h.name, hl.machine_name as contenttype,' .
+            'COUNT(hc.id) as savedstate, cm.id as instanceid';
+
+        if ($count) {
+            $select = "COUNT(1)";
+        } else {
+            $select = "$fields";
+        }
+
+        $sql = "SELECT $select
+                  FROM {hvp} h
+                  JOIN {hvp_libraries} hl ON h.main_library_id = hl.id
+                  LEFT JOIN {hvp_content_user_data} hc ON hc.hvp_id = h.id
+                  JOIN {modules} m ON m.name = 'hvp'
+                  JOIN {course_modules} cm ON cm.module = m.id AND h.course = cm.course AND h.id = cm.instance
+                   AND cm.deletioninprogress = 0
+                  JOIN {course} c ON c.id = h.course ";
+        if (!$count) {
+            $sql .= " GROUP BY $groupbyfields";
+        }
+        $params = [];
+
+        // Add order by if needed.
+        if (!$count && $sqlsort = $this->get_sql_sort()) {
+            $sql .= " ORDER BY " . $sqlsort;
+        }
+
+        return [$sql, $params];
+    }
+
+    /**
+     * Query the DB.
+     *
+     * @param int $pagesize size of page for paginated displayed table.
+     * @param bool $useinitialsbar do you want to use the initials bar.
+     */
+    public function query_db($pagesize, $useinitialsbar = true) {
+        global $DB;
+
+        list($countsql, $countparams) = $this->get_sql_and_params(true);
+        list($sql, $params) = $this->get_sql_and_params();
+        $total = $DB->count_records_sql($countsql, $countparams);
+        $this->pagesize($pagesize, $total);
+        $this->rawdata = $DB->get_records_sql($sql, $params, $this->get_page_start(), $this->get_page_size());
+
+        // Set initial bars.
+        if ($useinitialsbar) {
+            $this->initialbars($total > $pagesize);
+        }
+    }
+
+    /**
+     * Override default implementation to display a more meaningful information to the user.
+     */
+    public function print_nothing_to_display() {
+        global $OUTPUT;
+
+        echo $this->render_reset_button();
+        $this->print_initials_bar();
+
+        $message = get_string('nohvpactivities', 'tool_migratehvp2h5p');
+        echo $OUTPUT->notification($message, 'warning');
+    }
+}
