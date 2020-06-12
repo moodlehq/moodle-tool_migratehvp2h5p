@@ -25,6 +25,7 @@
 
 namespace tool_migratehvp2h5p\output;
 
+use tool_migratehvp2h5p\api;
 use hvpactivities_table;
 use renderable;
 use renderer_base;
@@ -58,7 +59,20 @@ class listnotmigrated implements renderable, templatable {
      * @return stdClass
      */
     public function export_for_template(renderer_base $output): stdClass {
-        $data = (object)[];
+        $data = (object)[
+            'formaction' => 'index.php',
+            'settings' => [
+                [
+                    'name' => 'keeporiginal',
+                    'label' => get_string('keeporiginal', 'tool_migratehvp2h5p'),
+                    'options' => [
+                            ['value' => api::HIDEORIGINAL, 'text' => get_string('keeporiginal_hide', 'tool_migratehvp2h5p')],
+                            ['value' => api::DELETEORIGINAL, 'text' => get_string('keeporiginal_delete', 'tool_migratehvp2h5p')],
+                            ['value' => api::KEEPORIGINAL, 'text' => get_string('keeporiginal_nothing', 'tool_migratehvp2h5p')],
+                    ]
+                ],
+            ],
+        ];
 
         ob_start();
         $this->table->out($this->table->get_page_size(), true);
@@ -69,3 +83,4 @@ class listnotmigrated implements renderable, templatable {
         return $data;
     }
 }
+

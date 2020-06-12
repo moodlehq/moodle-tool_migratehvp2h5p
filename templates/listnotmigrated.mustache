@@ -31,15 +31,46 @@
     Example context (json):
     {
         "hvpactivities": "<table><tr><td>This is the table where the list of HVP activities will be rendered</td></tr></table>",
+        "formaction": "#",
+        "settings": [
+            {
+                "name": "examplefield",
+                "label": "What do you want to do?",
+                "options": [
+                    {
+                        "value": 0,
+                        "text": "Nothing"
+                    },
+                    {
+                        "value": 1,
+                        "text": "Something"
+                    }
+                ]
+            }
+        ]
     }
 
 }}
-
-<div data-region="hvpactivities">
-    <div class="mt-1 mb-1" data-region="hvp-activities-table">
-        {{{hvpactivities}}}
+<form action="{{formaction}}" method="post" id="migratehvp2h5pform">
+    <div data-region="hvpactivities">
+        <div class="mt-1 mb-1" data-region="hvp-activities-table">
+            {{{hvpactivities}}}
+        </div>
     </div>
-</div>
-<div class="mt-1 d-inline-block w-100">
-    <button class="btn btn-primary" id="confirm-bulk-action">{{# str}} migrate, tool_migratehvp2h5p {{/ str}}</button>
-</div>
+    <div class="mt-1">
+        <h3>{{#str}} settings, tool_migratehvp2h5p {{/str}}</h3>
+        {{#settings}}
+            <div class="form-group">
+                <label class="form-label" for="{{name}}">{{label}}</label>
+                {{#options.0}}
+                    <select class="form-control" id="{{name}}" name="{{name}}">
+                          {{#options}}<option value="{{value}}">{{text}}</option>{{/options}}
+                    </select>
+                {{/options.0}}
+            </div>
+        {{/settings}}
+    </div>
+    <div class="mt-1 d-inline-block w-100">
+        <button class="btn btn-primary" id="confirm-bulk-action">{{# str}} migrate, tool_migratehvp2h5p {{/ str}}</button>
+    </div>
+</form>

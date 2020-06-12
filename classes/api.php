@@ -23,6 +23,13 @@
  */
 namespace tool_migratehvp2h5p;
 
+defined('MOODLE_INTERNAL') || die;
+
+require_once($CFG->dirroot. '/course/lib.php');
+require_once($CFG->dirroot. '/mod/hvp/locallib.php');
+require_once($CFG->dirroot . '/tag/lib.php');
+require_once($CFG->dirroot . '/lib/completionlib.php');
+
 use context_course;
 use context_module;
 use context_user;
@@ -30,6 +37,10 @@ use stdClass;
 use stored_file;
 use mod_h5pactivity\local\attempt;
 use tool_migratehvp2h5p\event\hvp_migrated;
+use moodle_exception;
+use core_tag_tag;
+use completion_info;
+use core_competency\api as competencyapi;
 
 /**
  * Class containing helper methods for processing mod_hvp migrations.
@@ -40,38 +51,154 @@ use tool_migratehvp2h5p\event\hvp_migrated;
 
 class api {
 
+    /** @var value to indicate the original hvp activity must be deleted after migration */
+    public const DELETEORIGINAL = 0;
+
+    /** @var value to indicate to keep the original hvp activity after migration */
+    public const KEEPORIGINAL = 1;
+
+    /** @var value to indicate to hide the original hvp activity after migration */
+    public const HIDEORIGINAL = 2;
+
     /**
      * Migrates a mod_hvp activity to a mod_h5pactivity.
      *
-     * @param  int    $hvpid The mod_hvp of the activity to migrate.
-     * @return bool True if the activity was migrated; false otherwise;
+     * @param int $hvpid The mod_hvp of the activity to migrate.
+     * @param int $keeporiginal 0 delete the original hvp, 1 keep it, 2 hides it
+     * @return bool if the activity is migrated
      */
-    public static function migrate_hvp2h5p(int $hvpid): bool {
+    public static function migrate_hvp2h5p(int $hvpid, int $keeporiginal = self::KEEPORIGINAL): bool {
         global $DB, $USER;
 
-        // TODO: Check in the logs if this $hvpid has been migrated previously.
+        $transaction = $DB->start_delegated_transaction();
 
-        // Get the mod_hvp activity information.
-        $hvp = $DB->get_record('hvp', ['id' => $hvpid]);
-        $hvpgradeitem = $DB->get_record('grade_items', ['itemtype' => 'mod', 'itemmodule' => 'hvp', 'iteminstance' => $hvpid]);
+        try {
+            // Get the mod_hvp activity information.
+            $hvp = $DB->get_record('hvp', ['id' => $hvpid]);
+            $hvpgradeitem = $DB->get_record('grade_items', ['itemtype' => 'mod', 'itemmodule' => 'hvp', 'iteminstance' => $hvpid]);
 
-        // Create mod_h5pactivity.
-        $h5pactivity = self::create_mod_h5pactivity($hvp, $hvpgradeitem);
-        var_dump($h5pactivity);
+            $hvpmodule = $DB->get_record('modules', ['name' => 'hvp'], '*', MUST_EXIST);
+            $params = ['module' => $hvpmodule->id, 'instance' => $hvp->id];
+            $hvp->cm = $DB->get_record('course_modules', $params, '*', MUST_EXIST);
 
-        // Create attempt and upgrade grades.
-        self::duplicate_grades($hvpgradeitem->id, $h5pactivity->gradeitem->id);
-        self::create_h5pactivity_attempts($hvpid, $h5pactivity->cm);
+            // Create mod_h5pactivity.
+            $h5pactivity = self::create_mod_h5pactivity($hvp, $hvpgradeitem);
+            if (empty($h5pactivity)) {
+                return false;
+            }
 
-        h5pactivity_update_grades($h5pactivity);
+            // Create attempt and upgrade grades.
+            self::duplicate_grades($hvpgradeitem->id, $h5pactivity->gradeitem->id);
+            self::create_h5pactivity_attempts($hvpid, $h5pactivity->cm);
 
-        self::trigger_migration_event($hvp, $h5pactivity);
+            h5pactivity_update_grades($h5pactivity);
 
-        // TODO: Add a setting to decide if the mod_hvp activity should be hidden/removed.
+            self::trigger_migration_event($hvp, $h5pactivity);
 
-        // TODO: Implement rollback in case some error has been raising when migrating the activity.
+            self::finish_migration($hvp, $keeporiginal);
 
-        return false;
+        } catch (moodle_exception $e) {
+
+            try {
+                $transaction->rollback($e);
+            } catch (moodle_exception $e) {
+                // Catch the re-thrown exception.
+                return false;
+            }
+
+            return false;
+        }
+        $transaction->allow_commit();
+
+        return true;
+    }
+
+    /**
+     * Return the SQL to select the hvp activies pending to migrate.
+     *
+     * This method is used by tool_migratehvp2h5p\output\hvpactivities_table and by
+     * the CLI migrate.php command. The SQL is quite complex so having it in one place
+     * is a good idea.
+     *
+     * @param  bool $count when true, returns the count SQL.
+     * @return array containing sql to use and an array of params.
+     */
+    public static function get_sql_hvp_to_migrate(bool $count = false, ?string $sort = null): array {
+
+        self::fix_duplicated_hvp();
+
+        if ($count) {
+            $select = "COUNT(1)";
+            $groupby = '';
+        } else {
+            $select = 'h.id, h.course as courseid, c.fullname as course, h.name, hl.machine_name as contenttype,' .
+            'COUNT(hc.id) as savedstate, cm.id as instanceid';
+            $groupby = 'GROUP BY h.id, h.course, c.fullname, h.name, hl.machine_name, cm.id';
+        }
+
+        // We need to select the hvp activities which are not migrated but ignoring the activities in the recycle bin.
+        // The most efficient way seems to have a subtable with all non-delete h5p activities.
+        $sql = "SELECT $select
+                  FROM {hvp} h
+                  JOIN {hvp_libraries} hl ON h.main_library_id = hl.id
+                  LEFT JOIN {hvp_content_user_data} hc ON hc.hvp_id = h.id
+                  JOIN {modules} m ON m.name = 'hvp'
+                  JOIN {course_modules} cm ON cm.module = m.id AND h.course = cm.course
+                       AND h.id = cm.instance AND cm.deletioninprogress = 0
+                  JOIN {course} c ON c.id = h.course
+                  LEFT JOIN (
+                             SELECT i.id, i.name, i.timecreated, i.course
+                             FROM {h5pactivity} i
+                             JOIN {modules} m2 ON m2.name = 'h5pactivity'
+                             JOIN {course_modules} mgrcm ON mgrcm.module = m2.id AND i.course = mgrcm.course
+                                 AND i.id = mgrcm.instance AND mgrcm.deletioninprogress = 0
+                       ) mgr
+                       ON mgr.name = h.name AND mgr.timecreated = h.timecreated AND mgr.course = h.course
+                 WHERE mgr.id IS NULL
+                       $groupby";
+
+        if (!empty($sort)) {
+            $sql .= " ORDER BY " . $sort;
+        }
+
+        return [$sql, []];
+    }
+
+    /**
+     * Fix duplicated hvp repeated timcreate.
+     *
+     * To know if a hvp is migrated we check for same name, course and timecreated. This way
+     * the system is flexible enough without creating any new table or checking the logstore.
+     * The only scenario when this can fail is with duplicated activities. To solve this, we fix
+     * first all the duplicated hvp by incrementing it's timecreated one second.
+     *
+     * - Hey! But this modify the original activity!
+     *
+     * - Yes, I know. We made the activity one second younger. You'll get over it.
+     *
+     */
+    private static function fix_duplicated_hvp(): void {
+        global $DB;
+
+        $sql = "SELECT h.name, h.course, h.timecreated, COUNT(*) as num
+                  FROM {hvp} h
+                 GROUP BY h.name, h.course, h.timecreated
+                HAVING COUNT(*) > 1";
+
+        $records = $DB->get_records_sql($sql, []);
+
+        foreach ($records as $key => $record) {
+            $repeated = $DB->get_records(
+                'hvp',
+                ['name' => $record->name, 'course' => $record->course, 'timecreated' => $record->timecreated],
+                '', 'id, timecreated'
+            );
+            $increment = 0;
+            foreach ($repeated as $fix) {
+                $DB->set_field('hvp', 'timecreated', $fix->timecreated + $increment, ['id' => $fix->id]);
+                $increment ++;
+            }
+        }
     }
 
     /**
@@ -79,9 +206,9 @@ class api {
      *
      * @param  stdClass $hvp The mod_hvp activity to be migrated from.
      * @param  stdClass $hvpgradeitem This information is required to update the h5pactivity grading information.
-     * @return stdClass The new h5pactivity created from the $hvp activity.
+     * @return stdClass|null The new h5pactivity created from the $hvp activity.
      */
-    private static function create_mod_h5pactivity(stdClass $hvp, stdClass $hvpgradeitem): stdClass {
+    private static function create_mod_h5pactivity(stdClass $hvp, stdClass $hvpgradeitem): ?stdClass {
         global $CFG, $DB;
 
         require_once($CFG->dirroot . '/mod/h5pactivity/lib.php');
@@ -96,11 +223,9 @@ class api {
         $h5pactivity->intro = $hvp->intro;
         $h5pactivity->introformat = $hvp->introformat;
         $h5pactivity->grade = intval($hvpgradeitem->grademax);
-        // TODO: Add setting to define default grademethod (for attempts).
         $h5pactivity->grademethod = 1; // Use highest attempt result for grading.
 
         $h5pactivity->displayoptions = $hvp->disable;
-        // TODO: Add setting to define default enabletracking value.
         $h5pactivity->enabletracking = 1; // Enabled.
 
         // Create the H5P file as a draft, simulating how mod_form works.
@@ -121,6 +246,13 @@ class api {
         $h5pactivity->id = h5pactivity_add_instance($h5pactivity);
         $h5pactivity->cm->instance = $h5pactivity->id;
 
+        if (empty($h5pactivity->id)) {
+            throw new moodle_exception("Cannot create H5P activity");
+        }
+
+        // We use the same timecreated as hvp to know what is the original activity.
+        $DB->set_field('h5pactivity', 'timecreated', $hvp->timecreated, ['id' => $h5pactivity->id]);
+
         // Copy intro files.
         self::copy_area_files($hvp, $hvpcm, $h5pactivity);
 
@@ -130,9 +262,58 @@ class api {
         // Update couse_module information.
         $h5pcm = self::add_course_module_to_section($hvpcm, $h5pactivity->cm->id);
 
-        // TODO: completion, availability, tags, competencies.
+        // TODO: completion.
+        self::copy_tags($hvpcm, $h5pactivity);
+        self::copy_competencies($hvpcm, $h5pactivity);
+        self::copy_completion($hvpcm, $h5pactivity);
 
         return $h5pactivity;
+    }
+
+    /**
+     * Copy tags from hvp to h5pactivity
+     *
+     * @param type $hvpcm the hvp course_module
+     * @param type $h5pactivity the new activity object
+     */
+    private static function copy_tags($hvpcm, $h5pactivity): void {
+        $tags = core_tag_tag::get_item_tags_array('core', 'course_modules', $hvpcm->id);
+        $h5pcontext = context_module::instance($h5pactivity->coursemodule);
+        core_tag_tag::set_item_tags('core', 'course_modules', $h5pactivity->coursemodule, $h5pcontext, $tags);
+    }
+
+    /**
+     * Copy comptetences from hvp to h5pactivity
+     *
+     * @param type $hvpcm the hvp course_module
+     * @param type $h5pactivity the new activity object
+     */
+    private static function copy_competencies($hvpcm, $h5pactivity): void {
+        $modulecompetencies = competencyapi::list_course_module_competencies_in_course_module($hvpcm->id);
+        foreach ($modulecompetencies as $mcid => $modulecompetency) {
+            $ccm = competencyapi::add_competency_to_course_module($h5pactivity->cm, $modulecompetency->get('competencyid'));
+        }
+    }
+
+    /**
+     * Copy completion from hvp to h5pactivity
+     *
+     * @param type $hvpcm the hvp course_module
+     * @param type $h5pactivity the new activity object
+     */
+    private static function copy_completion($hvpcm, $h5pactivity): void {
+        $course = get_course($hvpcm->course);
+        $completion = new completion_info($course);
+        if ($completion->is_enabled($hvpcm)) {
+            $users = $completion->get_tracked_users();
+            foreach ($users as $user) {
+                $status = $completion->get_data($hvpcm, false, $user->id);
+                if ($status->viewed) {
+                    $completion->set_module_viewed($h5pactivity->cm, $status->userid);
+                }
+                $completion->update_state($h5pactivity->cm, $status->completionstate, $status->userid);
+            }
+        }
     }
 
 
@@ -143,15 +324,41 @@ class api {
      * @return stored_file the stored file instance.
      */
     private static function prepare_draft_file_from_hvp(stdClass $hvp): stored_file {
-        global $USER;
+        global $USER, $CFG, $DB, $COURSE;
 
-        // TODO: Force exports file creation because if $CFG->mod_hvp_export is disabled, the file won't exist and the h5pactivity
-        // can't be migrated. This parameter can only be defined in config.php and, by default, it doesn't exist. However, sites
-        // using it, won't be able to use this migration tool if this part is not fixed and the export file is generated.
+        // The hvp saves all exports files int the course context instead. There is no real reason
+        // for this and, in fact, it is probably a bug.
         $coursecontext = context_course::instance($hvp->course);
+
+        // Get or generate the H5P pacakge.
         $exportfilename = $hvp->slug . '-' . $hvp->id . '.h5p';
         $fs = get_file_storage();
         $exportfile = $fs->get_file($coursecontext->id, 'mod_hvp', 'exports', 0, '/', $exportfilename);
+        mtrace($exportfilename);
+
+        if (empty($exportfile)) {
+            // We need to generate the H5P file.
+            // There are two scenarios where hvp don't create the package file:
+            // - If $CFG->mod_hvp_export is defined and disabled (by default, it does not exist)
+            // - If the activity is duplicated but nobody access it (the export file is generated on display).
+            if (isset($CFG->mod_hvp_export)) {
+                unset($CFG->mod_hvp_export);
+            }
+
+            // We need to fake the course variable.
+            $course = $DB->get_record('course', ['id' => $hvp->course], '*', MUST_EXIST);
+            $COURSE = $course;
+            // Trigger a fake visualization will create the export file.
+            $view    = new \mod_hvp\view_assets($hvp->cm, $course);
+            // Slug value can change on export.
+            $hvp->slug = $DB->get_field('hvp', 'slug', ['id' => $hvp->id]);
+            $exportfilename = $hvp->slug . '-' . $hvp->id . '.h5p';
+            $exportfile = $fs->get_file($coursecontext->id, 'mod_hvp', 'exports', 0, '/', $exportfilename);
+        }
+
+        if (empty($exportfile)) {
+            throw new moodle_exception("Cannot generate H5P package");
+        }
 
         $usercontext = context_user::instance($USER->id);
         $filerecord = [
@@ -166,6 +373,9 @@ class api {
 
         $fs = get_file_storage();
         $file = $fs->create_file_from_storedfile($filerecord, $exportfile);
+
+        // We don't want to leave behind this files in the course context.
+        $exportfile->delete();
 
         return $file;
     }
@@ -318,8 +528,6 @@ class api {
             }
 
             // Copy all the xapi_results.
-            // TODO: Should we create a statement and call $attempt->save_statement() instead of copying manually this information?.
-            // For now, this is the straight approach without using it because it's not easy to create the statement to save.
             $subcontent = null;
             $additionals = json_decode($record->additionals, true);
             if ($additionals && key_exists('extensions', $additionals) &&
@@ -379,5 +587,27 @@ class api {
         $record->h5pactivitycmid = $h5pactivity->cm->id;
         $event = hvp_migrated::create_from_record($record);
         $event->trigger();
+    }
+
+    /**
+     * Execute what to do with the original hvp activity.
+     *
+     * @param stdClass $hvp The mod_hvp of the activity to migrate.
+     * @param int $keeporiginal 0 delete the original hvp, 1 keep it, 2 hides it
+     * @return bool if the activity was migrated
+     */
+    public static function finish_migration(stdClass $hvp, int $keeporiginal): void {
+        global $DB;
+        $hvpmodule = $DB->get_record('modules', ['name' => 'hvp'], '*', MUST_EXIST);
+        $params = ['module' => $hvpmodule->id, 'instance' => $hvp->id];
+        $hvpcmid = $DB->get_field('course_modules', 'id', $params);
+        switch ($keeporiginal) {
+            case self::DELETEORIGINAL:
+                course_delete_module($hvpcmid);
+                break;
+            case self::HIDEORIGINAL:
+                set_coursemodule_visible($hvpcmid, 0);
+                break;
+        }
     }
 }

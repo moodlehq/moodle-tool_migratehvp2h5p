@@ -31,14 +31,34 @@
  * @license     http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
+use core\output\notification;
+use tool_migratehvp2h5p\output\hvpactivities_table;
+use tool_migratehvp2h5p\output\listnotmigrated;
+use tool_migratehvp2h5p\api;
+
 require_once(__DIR__ . '/../../../config.php');
 require_once($CFG->libdir . '/adminlib.php');
 
 $context = context_system::instance();
 $url = new moodle_url('/admin/tool/migratehvp2h5p/index.php');
 
+$activityids = optional_param_array('activityids', [], PARAM_INT);
+$keeporiginal = optional_param('keeporiginal', 1, PARAM_INT);
+
 // This calls require_login and checks moodle/site:config.
 admin_externalpage_setup('migratehvp2h5p');
+
+$notices = [];
+if (!empty($activityids)) {
+    foreach ($activityids as $activityid) {
+        $result = api::migrate_hvp2h5p($activityid, $keeporiginal);
+        if ($result) {
+            $notices[] = [get_string('migrate_success', 'tool_migratehvp2h5p', $activityid), notification::NOTIFY_SUCCESS];
+        } else {
+            $notices[] = [get_string('migrate_fail', 'tool_migratehvp2h5p', $activityid), notification::NOTIFY_ERROR];
+        }
+    }
+}
 
 $PAGE->set_context($context);
 $PAGE->set_url($url);
@@ -46,20 +66,16 @@ $PAGE->set_pagelayout('admin');
 
 $PAGE->set_title(get_string('pluginname', 'tool_migratehvp2h5p'));
 
-$renderer = $PAGE->get_renderer('tool_migratehvp2h5p');
-
-echo $renderer->header();
+echo $OUTPUT->header();
 echo $OUTPUT->heading(get_string('hvpactivities', 'tool_migratehvp2h5p'));
 
-// TODO: Implement the logic to call the migrate_hvp2h5p method when required, passing the hvpids to migrate.
-// \tool_migratehvp2h5p\api::migrate_hvp2h5p(2); die();
+foreach ($notices as $notice) {
+    echo $OUTPUT->notification($notice[0], $notice[1]);
+}
 
-$table = new \tool_migratehvp2h5p\output\hvpactivities_table();
+$table = new hvpactivities_table();
 $table->baseurl = $url;
-$activitylist = new \tool_migratehvp2h5p\output\listnotmigrated($table);
-echo $renderer->render_not_migrated_hvp($activitylist);
+$activitylist = new listnotmigrated($table);
+echo $OUTPUT->render($activitylist);
 
-// TODO: Review if a list with more actions should be displayed here, instead of displaying directly the HVP activities to migrate.
-// For now, activities to migrate are displayed because I'm not sure if more actions will be required.
-
-echo $renderer->footer();
+echo $OUTPUT->footer();

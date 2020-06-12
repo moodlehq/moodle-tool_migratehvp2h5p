@@ -24,6 +24,8 @@
 
 namespace tool_migratehvp2h5p\output;
 
+use tool_migratehvp2h5p\api;
+use core\output\checkbox_toggleall;
 use html_writer;
 use moodle_url;
 use stdClass;
@@ -48,6 +50,7 @@ class hvpactivities_table extends table_sql {
      *
      */
     public function __construct() {
+        global $PAGE;
         parent::__construct('tool_migratehvp2h5p_hvpactivities_table');
 
         // Define columns in the table.
@@ -62,15 +65,16 @@ class hvpactivities_table extends table_sql {
      * Setup the headers for the table.
      */
     protected function define_table_columns() {
-        $checkboxattrs = [
-            'title' => get_string('selectall'),
-            'data-action' => 'selectall'
-        ];
+        global $OUTPUT;
 
-        // TODO: Display only the mod_hvp contents to be migrated (looking at the event logs table) or add a column to display
-        // if the mod_hvp content has been migrated (and also a filter to display only the contents to be migrated).
+        $selectallcheckbox = new checkbox_toggleall('activities', true, [
+            'id' => 'select-all', 'name' => 'select-all',
+            'value' => 1, 'label' => get_string('selectall'),
+        ], false);
+        $checkbox = $OUTPUT->render($selectallcheckbox);
+
         $columnheaders = [
-            'select' => html_writer::checkbox('selectall', 1, false, null, $checkboxattrs),
+            'select' => $checkbox,
             'id' => get_string('id', 'tool_migratehvp2h5p'),
             'course' => get_string('course'),
             'name' => get_string('name'),
@@ -82,6 +86,11 @@ class hvpactivities_table extends table_sql {
 
         $this->define_columns(array_keys($columnheaders));
         $this->define_headers(array_values($columnheaders));
+        $this->column_class('id', 'd-none d-sm-table-cell');
+        $this->column_class('contenttype', 'd-none d-sm-table-cell');
+        $this->column_class('graded', 'd-none d-md-table-cell');
+        $this->column_class('attempted', 'd-none d-md-table-cell');
+        $this->column_class('savedstate', 'd-none d-md-table-cell');
     }
 
     /**
@@ -106,13 +115,20 @@ class hvpactivities_table extends table_sql {
      * @throws coding_exception
      */
     public function col_select(stdClass $data):string {
+        global $OUTPUT;
+
         $stringdata = [
             'activityname' => $data->name,
         ];
 
-        return \html_writer::checkbox('activityids[]', $data->id, false, '',
-                ['class' => 'selecthvpactivities', 'title' => get_string('selecthvpactivity',
-                'tool_migratehvp2h5p', $stringdata)]);
+        $selectallcheckbox = new checkbox_toggleall('activities', false, [
+            'id' => "select-activity-{$data->id}",
+            'name' => "activityids[{$data->id}]",
+            'value' => $data->id,
+            'title' => get_string('selecthvpactivity', 'tool_migratehvp2h5p', $data->name),
+        ], false);
+        return $OUTPUT->render($selectallcheckbox);
+
     }
 
     /**
@@ -173,33 +189,10 @@ class hvpactivities_table extends table_sql {
      * @return array containing sql to use and an array of params.
      */
     protected function get_sql_and_params(bool $count = false): array {
-        $groupbyfields = 'h.id, h.course, c.fullname, h.name, hl.machine_name, cm.id';
-        $fields = 'h.id, h.course as courseid, c.fullname as course, h.name, hl.machine_name as contenttype,' .
-            'COUNT(hc.id) as savedstate, cm.id as instanceid';
-
-        if ($count) {
-            $select = "COUNT(1)";
-        } else {
-            $select = "$fields";
-        }
-
-        $sql = "SELECT $select
-                  FROM {hvp} h
-                  JOIN {hvp_libraries} hl ON h.main_library_id = hl.id
-                  LEFT JOIN {hvp_content_user_data} hc ON hc.hvp_id = h.id
-                  JOIN {modules} m ON m.name = 'hvp'
-                  JOIN {course_modules} cm ON cm.module = m.id AND h.course = cm.course AND h.id = cm.instance
-                   AND cm.deletioninprogress = 0
-                  JOIN {course} c ON c.id = h.course ";
-        if (!$count) {
-            $sql .= " GROUP BY $groupbyfields";
-        }
-        $params = [];
-
         // Add order by if needed.
-        if (!$count && $sqlsort = $this->get_sql_sort()) {
-            $sql .= " ORDER BY " . $sqlsort;
-        }
+        $sort = ($count) ? null : $this->get_sql_sort();
+
+        list($sql, $params) = api::get_sql_hvp_to_migrate($count, $sort);
 
         return [$sql, $params];
     }
