@@ -180,7 +180,7 @@ class api {
     private static function fix_duplicated_hvp(): void {
         global $DB;
 
-        $sql = "SELECT h.name, h.course, h.timecreated, COUNT(*) as num
+        $sql = "SELECT MAX(h.id) AS id, h.name, h.course, h.timecreated, COUNT(*) as num
                   FROM {hvp} h
                  GROUP BY h.name, h.course, h.timecreated
                 HAVING COUNT(*) > 1";
