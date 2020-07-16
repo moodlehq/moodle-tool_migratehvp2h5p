@@ -31,5 +31,5 @@ $plugin->requires = 2020041700;
 $plugin->maturity = MATURITY_BETA;
 $plugin->dependencies = [
     'mod_h5pactivity' => 2020041401,
-    'mod_hvp' => ANY_VERSION,
+    'mod_hvp' => 2020020500,
 ];
