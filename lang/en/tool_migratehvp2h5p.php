@@ -26,6 +26,7 @@
 defined('MOODLE_INTERNAL') || die();
 
 $string['attempted'] = 'Attempted users';
+$string['cannot_migrate'] = 'Cannot migrate the activity';
 $string['contenttype'] = 'Content-type';
 $string['event_hvp_migrated'] = 'mod_hvp migrated to mod_h5pactivity';
 $string['graded'] = 'Graded users';
@@ -33,7 +34,7 @@ $string['hvpactivities'] = 'Pending mod_hvp activities';
 $string['id'] = 'Id';
 $string['migrate'] = 'Migrate';
 $string['migrate_success'] = 'Hvp activity with id {$a} migrated successfully';
-$string['migrate_fail'] = 'Error migration hvp ctivity with id {$a}';
+$string['migrate_fail'] = 'Error migration hvp activity with id {$a}';
 $string['nohvpactivities'] = 'There are no mod_hvp activities to migrate to the mod_h5pactivity.';
 $string['pluginname'] = 'Migrate content from mod_hvp to mod_h5pactivity';
 $string['keeporiginal'] = 'Select what to do with the original activity once migrated';

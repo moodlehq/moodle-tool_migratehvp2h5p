@@ -129,10 +129,11 @@ foreach ($activities as $hvpid => $info) {
         mtrace("\t ...Skipping\n");
         continue;
     }
-    $result = tool_migratehvp2h5p\api::migrate_hvp2h5p($hvpid, $keeporiginal);
-    if ($result) {
+    try {
+        tool_migratehvp2h5p\api::migrate_hvp2h5p($hvpid, $keeporiginal);
         mtrace("\t ...Successful\n");
-    } else {
+    } catch (moodle_exception $e) {
+        mtrace("\tException: ".$e->getMessage()."\n");
         mtrace("\t ...Failed!\n");
     }
 }

@@ -53,6 +53,8 @@ class hvpactivities_table extends table_sql {
         global $PAGE;
         parent::__construct('tool_migratehvp2h5p_hvpactivities_table');
 
+        $this->define_baseurl('admin/tool/migratehvp2h5p/index.php');
+
         // Define columns in the table.
         $this->define_table_columns();
 

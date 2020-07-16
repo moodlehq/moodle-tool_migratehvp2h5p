@@ -66,9 +66,10 @@ class api {
      * @param int $hvpid The mod_hvp of the activity to migrate.
      * @param int $keeporiginal 0 delete the original hvp, 1 keep it, 2 hides it
      * @return bool if the activity is migrated
+     * @throws moodle_exception if something happens during the migration
      */
-    public static function migrate_hvp2h5p(int $hvpid, int $keeporiginal = self::KEEPORIGINAL): bool {
-        global $DB, $USER;
+    public static function migrate_hvp2h5p(int $hvpid, int $keeporiginal = self::KEEPORIGINAL): void {
+        global $DB;
 
         $transaction = $DB->start_delegated_transaction();
 
@@ -84,7 +85,7 @@ class api {
             // Create mod_h5pactivity.
             $h5pactivity = self::create_mod_h5pactivity($hvp, $hvpgradeitem);
             if (empty($h5pactivity)) {
-                return false;
+                throw new moodle_exception('cannot_migrate', 'tool_migratehvp2h5p');
             }
 
             // Create attempt and upgrade grades.
@@ -101,16 +102,13 @@ class api {
 
             try {
                 $transaction->rollback($e);
-            } catch (moodle_exception $e) {
+            } catch (moodle_exception $rollbackexception) {
                 // Catch the re-thrown exception.
-                return false;
+                throw $rollbackexception;
             }
-
-            return false;
+            throw $e;
         }
         $transaction->allow_commit();
-
-        return true;
     }
 
     /**

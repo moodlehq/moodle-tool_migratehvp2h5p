@@ -51,11 +51,13 @@ admin_externalpage_setup('migratehvp2h5p');
 $notices = [];
 if (!empty($activityids)) {
     foreach ($activityids as $activityid) {
-        $result = api::migrate_hvp2h5p($activityid, $keeporiginal);
-        if ($result) {
+        try {
+            api::migrate_hvp2h5p($activityid, $keeporiginal);
             $notices[] = [get_string('migrate_success', 'tool_migratehvp2h5p', $activityid), notification::NOTIFY_SUCCESS];
-        } else {
-            $notices[] = [get_string('migrate_fail', 'tool_migratehvp2h5p', $activityid), notification::NOTIFY_ERROR];
+        } catch (moodle_exception $e) {
+            $errormsg = get_string('migrate_fail', 'tool_migratehvp2h5p', $activityid);
+            $errormsg .= ': '.$e->getMessage();
+            $notices[] = [$errormsg, notification::NOTIFY_ERROR];
         }
     }
 }
