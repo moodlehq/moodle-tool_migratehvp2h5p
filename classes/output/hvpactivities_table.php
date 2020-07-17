@@ -146,7 +146,7 @@ class hvpactivities_table extends table_sql {
 
         $sql = "SELECT COUNT(*)
                   FROM {grade_grades} gg
-                  JOIN mdl_grade_items gi ON gi.id = gg.itemid AND gi.iteminstance = :hvpid
+                  JOIN {grade_items} gi ON gi.id = gg.itemid AND gi.iteminstance = :hvpid
                    AND gi.courseid = :courseid AND gi.itemtype = 'mod' AND gi.itemmodule = 'hvp'";
         $params = ['hvpid' => $data->id, 'courseid' => $data->courseid];
         return $DB->count_records_sql($sql, $params);
