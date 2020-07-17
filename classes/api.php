@@ -287,6 +287,9 @@ class api {
      * @param type $h5pactivity the new activity object
      */
     private static function copy_competencies($hvpcm, $h5pactivity): void {
+        // This allows us to do the copy, even if they have been disabled.
+        competencyapi::skip_enabled();
+
         $modulecompetencies = competencyapi::list_course_module_competencies_in_course_module($hvpcm->id);
         foreach ($modulecompetencies as $mcid => $modulecompetency) {
             $ccm = competencyapi::add_competency_to_course_module($h5pactivity->cm, $modulecompetency->get('competencyid'));
