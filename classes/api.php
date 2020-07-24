@@ -583,7 +583,7 @@ class api {
         $record = new stdClass();
         $record->hvpid = $hvp->id;
         $record->userid = $USER->id;
-        $record->contextid = $hvpcm->id;
+        $record->contextid = context_module::instance($hvpcm->id)->id;
         $record->h5pactivityid = $h5pactivity->id;
         $record->h5pactivitycmid = $h5pactivity->cm->id;
         $event = hvp_migrated::create_from_record($record);
