@@ -88,11 +88,17 @@ class api {
                 throw new moodle_exception('cannot_migrate', 'tool_migratehvp2h5p');
             }
 
-            // Create attempt and upgrade grades.
-            self::duplicate_grades($hvpgradeitem->id, $h5pactivity->gradeitem->id);
+            // Create attempt.
             self::create_h5pactivity_attempts($hvpid, $h5pactivity->cm);
 
-            h5pactivity_update_grades($h5pactivity);
+            // Upgrade grades.
+            if ($hvpgradeitem->grademax > 0) {
+                // Plugin mov_hvp lets define maxgrade = 0 but mod_h5pactivity don't (minimum value for maxgrade is 1).
+                // Grades will be only migrated when maxgrade > 0; otherwise all grade items will be 0 so, in that case,
+                // it makes more sense to configure the activity "Grade type" to "None".
+                self::duplicate_grades($hvpgradeitem->id, $h5pactivity->gradeitem->id);
+                h5pactivity_update_grades($h5pactivity);
+            }
 
             self::trigger_migration_event($hvp, $h5pactivity);
 
@@ -221,7 +227,11 @@ class api {
         $h5pactivity->intro = $hvp->intro;
         $h5pactivity->introformat = $hvp->introformat;
         $h5pactivity->grade = intval($hvpgradeitem->grademax);
-        $h5pactivity->grademethod = 1; // Use highest attempt result for grading.
+        if ($hvpgradeitem->grademax == 0) {
+            $h5pactivity->grademethod = 0; // Use "Don't calculate a grade" when maxgrade is set to 0 in mod_hvp.
+        } else {
+            $h5pactivity->grademethod = 1; // Use highest attempt result for grading.
+        }
 
         $h5pactivity->displayoptions = $hvp->disable;
         $h5pactivity->enabletracking = 1; // Enabled.
@@ -478,24 +488,30 @@ class api {
         $params = ['itemtype' => 'mod', 'itemmodule' => 'h5pactivity', 'iteminstance' => $h5pactivity->id];
         $h5pgradeitem = $DB->get_record('grade_items', $params);
 
-        // Copy all the fields from the mod_hvp grade_items entry to the mod_h5pactivity one.
-        $h5pgradeitem->categoryid = $hvpgradeitem->categoryid;
-        $h5pgradeitem->grademin = $hvpgradeitem->grademin;
-        $h5pgradeitem->gradepass = $hvpgradeitem->gradepass;
-        $h5pgradeitem->multfactor = $hvpgradeitem->multfactor;
-        $h5pgradeitem->plusfactor = $hvpgradeitem->plusfactor;
-        $h5pgradeitem->aggregationcoef = $hvpgradeitem->aggregationcoef;
-        $h5pgradeitem->aggregationcoef2 = $hvpgradeitem->aggregationcoef2;
-        $h5pgradeitem->display = $hvpgradeitem->display;
-        $h5pgradeitem->decimals = $hvpgradeitem->decimals;
-        $h5pgradeitem->hidden = $hvpgradeitem->hidden;
-        $h5pgradeitem->locked = $hvpgradeitem->locked;
-        $h5pgradeitem->locktime = $hvpgradeitem->locktime;
-        $h5pgradeitem->needsupdate = $hvpgradeitem->needsupdate;
-        $h5pgradeitem->weightoverride = $hvpgradeitem->weightoverride;
+        // Copy all the fields from the mod_hvp grade_items entry to the mod_h5pactivity one (only if the gradeitem exists).
+        if ($h5pgradeitem) {
+            $h5pgradeitem->categoryid = $hvpgradeitem->categoryid;
+            $h5pgradeitem->grademin = $hvpgradeitem->grademin;
+            $h5pgradeitem->gradepass = $hvpgradeitem->gradepass;
+            $h5pgradeitem->multfactor = $hvpgradeitem->multfactor;
+            $h5pgradeitem->plusfactor = $hvpgradeitem->plusfactor;
+            $h5pgradeitem->aggregationcoef = $hvpgradeitem->aggregationcoef;
+            $h5pgradeitem->aggregationcoef2 = $hvpgradeitem->aggregationcoef2;
+            $h5pgradeitem->display = $hvpgradeitem->display;
+            $h5pgradeitem->decimals = $hvpgradeitem->decimals;
+            $h5pgradeitem->hidden = $hvpgradeitem->hidden;
+            $h5pgradeitem->locked = $hvpgradeitem->locked;
+            $h5pgradeitem->locktime = $hvpgradeitem->locktime;
+            $h5pgradeitem->needsupdate = $hvpgradeitem->needsupdate;
+            $h5pgradeitem->weightoverride = $hvpgradeitem->weightoverride;
+            // If grademax is set to 0, gradetype will be set to "None" because minimum value for grademax should be 1.
+            if ($hvpgradeitem->grademax == 0) {
+                $h5pgradeitem->gradetype = 0;
+            }
 
-        // Update changes in DB.
-        $DB->update_record('grade_items', $h5pgradeitem);
+            // Update changes in DB.
+            $DB->update_record('grade_items', $h5pgradeitem);
+        }
 
         return $h5pgradeitem;
     }
