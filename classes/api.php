@@ -561,8 +561,9 @@ class api {
             $result->correctpattern = $record->correct_responses_pattern;
             $result->response = $record->response;
             $result->additionals = $record->additionals;
-            $result->rawscore = $record->raw_score;
-            $result->maxscore = $record->max_score;
+            // If rawscore or maxcore are null, set them to 0 because fields in h5pactivity_attempts_results doesn't support null.
+            $result->rawscore = $record->raw_score ?? 0;
+            $result->maxscore = $record->max_score ?? 0;
             // This information wasn't stored by the mod_hvp plugin, so no value can be added here.
             $result->duration = 0;
             // By default, all the results stored in hvp_xpai_results table can be considered as completed.
