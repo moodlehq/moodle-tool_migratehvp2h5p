@@ -60,15 +60,26 @@ class api {
     /** @var value to indicate to hide the original hvp activity after migration */
     public const HIDEORIGINAL = 2;
 
+    /** @var value to indicate the original hvp activity must not be copied to content bank. */
+    public const COPY2CBNO = 0;
+
+    /** @var value to indicate the original hvp activity must be copied to content bank and then linked to the new activity. */
+    public const COPY2CBYESWITHLINK = 1;
+
+    /** @var value to indicate the original hvp activity must be copied to content bank too. */
+    public const COPY2CBYESWITHOUTLINK = 2;
+
     /**
      * Migrates a mod_hvp activity to a mod_h5pactivity.
      *
      * @param int $hvpid The mod_hvp of the activity to migrate.
      * @param int $keeporiginal 0 delete the original hvp, 1 keep it, 2 hides it
+     * @param int $copy2cb Whether H5P files should be added to the content bank or not.
      * @return bool if the activity is migrated
      * @throws moodle_exception if something happens during the migration
      */
-    public static function migrate_hvp2h5p(int $hvpid, int $keeporiginal = self::KEEPORIGINAL): void {
+    public static function migrate_hvp2h5p(int $hvpid, int $keeporiginal = self::KEEPORIGINAL,
+            int $copy2cb = self::COPY2CBYESWITHLINK): void {
         global $DB;
 
         $transaction = $DB->start_delegated_transaction();
@@ -83,7 +94,7 @@ class api {
             $hvp->cm = $DB->get_record('course_modules', $params, '*', MUST_EXIST);
 
             // Create mod_h5pactivity.
-            $h5pactivity = self::create_mod_h5pactivity($hvp, $hvpgradeitem);
+            $h5pactivity = self::create_mod_h5pactivity($hvp, $hvpgradeitem, $copy2cb);
             if (empty($h5pactivity)) {
                 throw new moodle_exception('cannot_migrate', 'tool_migratehvp2h5p');
             }
@@ -210,9 +221,10 @@ class api {
      *
      * @param  stdClass $hvp The mod_hvp activity to be migrated from.
      * @param  stdClass $hvpgradeitem This information is required to update the h5pactivity grading information.
+     * @param  int $copy2cb Whether H5P files should be added to the content bank or not.
      * @return stdClass|null The new h5pactivity created from the $hvp activity.
      */
-    private static function create_mod_h5pactivity(stdClass $hvp, stdClass $hvpgradeitem): ?stdClass {
+    private static function create_mod_h5pactivity(stdClass $hvp, stdClass $hvpgradeitem, int $copy2cb): ?stdClass {
         global $CFG, $DB;
 
         require_once($CFG->dirroot . '/mod/h5pactivity/lib.php');
@@ -237,7 +249,7 @@ class api {
         $h5pactivity->enabletracking = 1; // Enabled.
 
         // Create the H5P file as a draft, simulating how mod_form works.
-        $h5pfile = self::prepare_draft_file_from_hvp($hvp);
+        $h5pfile = self::prepare_draft_file_from_hvp($hvp, $copy2cb);
         $h5pactivity->packagefile = $h5pfile->get_itemid();
 
         // Create the course-module with the correct information.
@@ -332,9 +344,10 @@ class api {
      * Helper function to create draft .h5p file from an existing mod_hvp activity.
      *
      * @param stdClass $hvp mod_hvp object with, at least, id, slug and course.
+     * @param int $copy2cb Whether H5P files should be added to the content bank or not.
      * @return stored_file the stored file instance.
      */
-    private static function prepare_draft_file_from_hvp(stdClass $hvp): stored_file {
+    private static function prepare_draft_file_from_hvp(stdClass $hvp, int $copy2cb): stored_file {
         global $USER, $CFG, $DB, $COURSE;
 
         // The hvp saves all exports files int the course context instead. There is no real reason
@@ -346,7 +359,6 @@ class api {
         $fs = get_file_storage();
         $exportfile = $fs->get_file($coursecontext->id, 'mod_hvp', 'exports', 0, '/', $exportfilename);
         mtrace($exportfilename);
-
         if (empty($exportfile)) {
             // We need to generate the H5P file.
             // There are two scenarios where hvp don't create the package file:
@@ -384,6 +396,47 @@ class api {
 
         $fs = get_file_storage();
         $file = $fs->create_file_from_storedfile($filerecord, $exportfile);
+
+        if ($copy2cb == self::COPY2CBYESWITHLINK || $copy2cb == self::COPY2CBYESWITHOUTLINK) {
+            // The file should be uploaded to the content bank.
+            $cb = new \core_contentbank\contentbank();
+            $content = $cb->create_content_from_file($coursecontext, $USER->id, $file);
+            if ($hvp->name) {
+                // Set name in content bank in order to make easier to find it later.
+                $content->set_name($hvp->name);
+            }
+            $cbfile = $content->get_file();
+
+            $activityfilerecord = [
+                'component' => 'user',
+                'filearea'  => 'draft',
+                'itemid'    => file_get_unused_draft_itemid(),
+                'author'    => fullname($USER),
+                'filepath'  => '/',
+                'filename'  => $cbfile->get_filename(),
+                'contextid' => $usercontext->id,
+            ];
+
+            if ($copy2cb == self::COPY2CBYESWITHLINK) {
+                // The H5P file will be a reference to the content bank file.
+                $cbfilerecord = [
+                    'component' => $cbfile->get_component(),
+                    'filearea'  => $cbfile->get_filearea(),
+                    'itemid'    => $cbfile->get_itemid(),
+                    'author'    => $cbfile->get_author(),
+                    'filepath'  => $cbfile->get_filepath(),
+                    'filename'  => $cbfile->get_filename(),
+                    'contextid' => $cbfile->get_contextid(),
+                ];
+                $reference = \file_storage::pack_reference($cbfilerecord);
+
+                $repository = $DB->get_record('repository', ['type' => 'contentbank']);
+                $file = $fs->create_file_from_reference($activityfilerecord, $repository->id, $reference);
+            } else {
+                // Apart from adding the file to the content bank, a copy for the activity has to be created too.
+                $file = $fs->create_file_from_storedfile($activityfilerecord, $exportfile);
+            }
+        }
 
         // We don't want to leave behind this files in the course context.
         $exportfile->delete();
