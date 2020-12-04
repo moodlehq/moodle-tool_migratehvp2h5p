@@ -35,12 +35,14 @@ list($options, $unrecognized) = cli_get_params(
         'execute' => false,
         'help' => false,
         'limit' => 100,
-        'keeporiginal' => 1
+        'keeporiginal' => 1,
+        'copy2cb' => api::COPY2CBYESWITHLINK,
     ], [
         'e' => 'execute',
         'h' => 'help',
         'l' => 'limit',
         'k' => 'keeporiginal',
+        'c' => 'copy2cb',
     ]
 );
 
@@ -57,6 +59,7 @@ Options:
  -h, --help                Print out this help
  -e, --execute             Run the migration tool
  -k, --keeporiginal=N      After migration 0 will remove the original activity, 1 will keep it and 2 will hide it
+ -c, --copy2cb=N           Whether H5P files should be added to the content bank with a link (1), as a copy (2) or not added (0)
  -l  --limit=N             The maximmum number of activities per execution (default 100).
                                 Already migrated activities will be ignored.
 
@@ -83,7 +86,12 @@ if (!isset($options['keeporiginal'])) {
     $options['keeporiginal'] = 1;
 }
 
-$keeporiginal = $options['keeporiginal'] ?? 1;
+if (!isset($options['copy2cb'])) {
+    $options['copy2cb'] = api::COPY2CBYESWITHLINK;
+}
+
+$keeporiginal = $options['keeporiginal'];
+$copy2cb = $options['copy2cb'];
 $limit = $options['limit'] ?? 100;
 $execute = (empty($options['execute'])) ? false : true;
 
@@ -93,7 +101,12 @@ if (!is_numeric($limit)) {
 }
 
 if (!is_numeric($keeporiginal)) {
-    echo "Limit must be an integer.\n";
+    echo "keeporiginal must be an integer.\n";
+    exit(1);
+}
+
+if (!is_numeric($copy2cb)) {
+    echo "copy2cb must be an integer.\n";
     exit(1);
 }
 
@@ -130,7 +143,7 @@ foreach ($activities as $hvpid => $info) {
         continue;
     }
     try {
-        tool_migratehvp2h5p\api::migrate_hvp2h5p($hvpid, $keeporiginal);
+        tool_migratehvp2h5p\api::migrate_hvp2h5p($hvpid, $keeporiginal, $copy2cb);
         mtrace("\t ...Successful\n");
     } catch (moodle_exception $e) {
         mtrace("\tException: ".$e->getMessage()."\n");

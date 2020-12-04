@@ -43,7 +43,8 @@ $context = context_system::instance();
 $url = new moodle_url('/admin/tool/migratehvp2h5p/index.php');
 
 $activityids = optional_param_array('activityids', [], PARAM_INT);
-$keeporiginal = optional_param('keeporiginal', 1, PARAM_INT);
+$keeporiginal = optional_param('keeporiginal', api::KEEPORIGINAL, PARAM_INT);
+$copy2cb = optional_param('copy2cb', api::COPY2CBYESWITHLINK, PARAM_INT);
 
 // This calls require_login and checks moodle/site:config.
 admin_externalpage_setup('migratehvp2h5p');
@@ -52,7 +53,7 @@ $notices = [];
 if (!empty($activityids)) {
     foreach ($activityids as $activityid) {
         try {
-            api::migrate_hvp2h5p($activityid, $keeporiginal);
+            api::migrate_hvp2h5p($activityid, $keeporiginal, $copy2cb);
             $notices[] = [get_string('migrate_success', 'tool_migratehvp2h5p', $activityid), notification::NOTIFY_SUCCESS];
         } catch (moodle_exception $e) {
             $errormsg = get_string('migrate_fail', 'tool_migratehvp2h5p', $activityid);

@@ -71,6 +71,24 @@ class listnotmigrated implements renderable, templatable {
                             ['value' => api::KEEPORIGINAL, 'text' => get_string('keeporiginal_nothing', 'tool_migratehvp2h5p')],
                     ]
                 ],
+                [
+                    'name' => 'copy2cb',
+                    'label' => get_string('copy2cb', 'tool_migratehvp2h5p'),
+                    'options' => [
+                        [
+                            'value' => api::COPY2CBYESWITHLINK,
+                            'text' => get_string('copy2cb_yeswithlink', 'tool_migratehvp2h5p')
+                        ],
+                        [
+                            'value' => api::COPY2CBYESWITHOUTLINK,
+                            'text' => get_string('copy2cb_yeswithoutlink', 'tool_migratehvp2h5p')
+                        ],
+                        [
+                            'value' => api::COPY2CBNO,
+                            'text' => get_string('copy2cb_no', 'tool_migratehvp2h5p')
+                        ],
+                    ],
+                ],
             ],
         ];
 
@@ -83,4 +101,3 @@ class listnotmigrated implements renderable, templatable {
         return $data;
     }
 }
-
