@@ -674,7 +674,9 @@ class api {
         $hvpcmid = $DB->get_field('course_modules', 'id', $params);
         switch ($keeporiginal) {
             case self::DELETEORIGINAL:
-                course_delete_module($hvpcmid);
+                // Set async to true in order to remove the original course module instantly and create ad-hoc tasks for
+                // background work such as recycle bin.
+                course_delete_module($hvpcmid, true);
                 break;
             case self::HIDEORIGINAL:
                 set_coursemodule_visible($hvpcmid, 0);
