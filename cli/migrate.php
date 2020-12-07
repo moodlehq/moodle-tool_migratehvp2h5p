@@ -143,8 +143,14 @@ foreach ($activities as $hvpid => $info) {
         continue;
     }
     try {
-        tool_migratehvp2h5p\api::migrate_hvp2h5p($hvpid, $keeporiginal, $copy2cb);
-        mtrace("\t ...Successful\n");
+        $messages = tool_migratehvp2h5p\api::migrate_hvp2h5p($hvpid, $keeporiginal, $copy2cb);
+        if (empty($messages)) {
+            mtrace("\t ...Successful\n");
+        } else {
+            foreach ($messages as $message) {
+                mtrace("\t ...$message[0]\n");
+            }
+        }
     } catch (moodle_exception $e) {
         mtrace("\tException: ".$e->getMessage()."\n");
         mtrace("\t ...Failed!\n");

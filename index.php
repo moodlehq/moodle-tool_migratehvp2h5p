@@ -53,8 +53,14 @@ $notices = [];
 if (!empty($activityids)) {
     foreach ($activityids as $activityid) {
         try {
-            api::migrate_hvp2h5p($activityid, $keeporiginal, $copy2cb);
-            $notices[] = [get_string('migrate_success', 'tool_migratehvp2h5p', $activityid), notification::NOTIFY_SUCCESS];
+            $messages = api::migrate_hvp2h5p($activityid, $keeporiginal, $copy2cb);
+            if (empty($messages)) {
+                // Use the default message when no message is raised by the migration method.
+                $notices[] = [get_string('migrate_success', 'tool_migratehvp2h5p', $activityid), notification::NOTIFY_SUCCESS];
+            } else {
+                // Merge message with previous notices.
+                $notices = array_merge($messages, $notices);
+            }
         } catch (moodle_exception $e) {
             $errormsg = get_string('migrate_fail', 'tool_migratehvp2h5p', $activityid);
             $errormsg .= ': '.$e->getMessage();

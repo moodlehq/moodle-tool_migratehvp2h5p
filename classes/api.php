@@ -41,6 +41,7 @@ use moodle_exception;
 use core_tag_tag;
 use completion_info;
 use core_competency\api as competencyapi;
+use core\output\notification;
 
 /**
  * Class containing helper methods for processing mod_hvp migrations.
@@ -75,13 +76,14 @@ class api {
      * @param int $hvpid The mod_hvp of the activity to migrate.
      * @param int $keeporiginal 0 delete the original hvp, 1 keep it, 2 hides it
      * @param int $copy2cb Whether H5P files should be added to the content bank or not.
-     * @return bool if the activity is migrated
+     * @return array Messages to be displayed (related to the migration process).
      * @throws moodle_exception if something happens during the migration
      */
     public static function migrate_hvp2h5p(int $hvpid, int $keeporiginal = self::KEEPORIGINAL,
-            int $copy2cb = self::COPY2CBYESWITHLINK): void {
+            int $copy2cb = self::COPY2CBYESWITHLINK): array {
         global $DB;
 
+        $messages = [];
         $transaction = $DB->start_delegated_transaction();
 
         try {
@@ -103,17 +105,38 @@ class api {
             self::create_h5pactivity_attempts($hvpid, $h5pactivity->cm);
 
             // Upgrade grades.
+            $tmpkeeporiginal = $keeporiginal;
             if ($hvpgradeitem->grademax > 0) {
                 // Plugin mov_hvp lets define maxgrade = 0 but mod_h5pactivity don't (minimum value for maxgrade is 1).
                 // Grades will be only migrated when maxgrade > 0; otherwise all grade items will be 0 so, in that case,
                 // it makes more sense to configure the activity "Grade type" to "None".
                 self::duplicate_grades($hvpgradeitem->id, $h5pactivity->gradeitem->id);
                 h5pactivity_update_grades($h5pactivity);
+            } else {
+                // Check if any of the grades for this activity, that will be ignored, has been overriden and/or has any feedback.
+                $total = self::check_grades_overridden($hvpgradeitem->id);
+                if ($total > 0) {
+                    $params = ['id' => $hvpid, 'name' => $hvp->name];
+                    if ($keeporiginal == self::DELETEORIGINAL) {
+                        // The HVP activity to remove has some feedback so, instead of removing it, set visibility to hidden
+                        // and display a warning message about this.
+                        $tmpkeeporiginal = self::HIDEORIGINAL;
+                        $messages[] = [
+                            get_string('migrate_gradesoverridden_notdelete', 'tool_migratehvp2h5p', $params),
+                            notification::NOTIFY_WARNING
+                        ];
+                    } else {
+                        $messages[] = [
+                            get_string('migrate_gradesoverridden', 'tool_migratehvp2h5p', $params),
+                            notification::NOTIFY_WARNING
+                        ];
+                    }
+                }
             }
 
             self::trigger_migration_event($hvp, $h5pactivity);
 
-            self::finish_migration($hvp, $keeporiginal);
+            self::finish_migration($hvp, $tmpkeeporiginal);
 
         } catch (moodle_exception $e) {
 
@@ -126,6 +149,8 @@ class api {
             throw $e;
         }
         $transaction->allow_commit();
+
+        return $messages;
     }
 
     /**
@@ -572,13 +597,25 @@ class api {
     private static function duplicate_grades(int $hvpgradeitemid, int $h5pgradeitemid) {
         global $DB;
 
-        $count = 0;
         $records = $DB->get_records('grade_grades', ['itemid' => $hvpgradeitemid]);
         foreach ($records as $record) {
             $record->itemid = $h5pgradeitemid;
             $DB->insert_record('grade_grades', $record);
-            $count++;
         }
+    }
+
+    /**
+     * Check if existing grades for this HVP activity has been overriden with some feedback.
+     *
+     * @param  int $hvpgradeitemid
+     * @return int Number of overridden grades
+     */
+    private static function check_grades_overridden(int $hvpgradeitemid): int {
+        global $DB;
+
+        $sql = 'SELECT COUNT(*) FROM {grade_grades} WHERE itemid = :itemid AND feedback IS NOT NULL';
+        $count = $DB->count_records_sql($sql, ['itemid' => $hvpgradeitemid]);
+        return $count;
     }
 
     private static function create_h5pactivity_attempts(int $hvpid, stdClass $h5pactivitycm) {

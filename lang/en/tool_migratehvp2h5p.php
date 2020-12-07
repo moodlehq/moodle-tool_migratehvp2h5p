@@ -39,6 +39,13 @@ $string['id'] = 'Id';
 $string['migrate'] = 'Migrate';
 $string['migrate_success'] = 'Hvp activity with id {$a} migrated successfully';
 $string['migrate_fail'] = 'Error migration hvp activity with id {$a}';
+$string['migrate_gradesoverridden'] = 'Original mod_hvp activity "{$a->name}", with id {$a->id}, migrated successfully. However,
+    it has some grading information overridden, such as feedback, which hasn\'t been migrated because the original activity is
+    configured with an invalid maximum grade (it has to be higher than 0 in order to be migrated to the gradebook).';
+$string['migrate_gradesoverridden_notdelete'] = 'Original mod_hvp activity "{$a->name}", with id {$a->id}, migrated successfully.
+    However, it has some grading information overridden, such as feedback, which hasn\'t been migrated because the original activity
+    is configured with an invalid maximum grade (it has to be higher than 0 in order to be migrated to the gradebook).
+    The original activity has been hidden instead of removing it.';
 $string['nohvpactivities'] = 'There are no mod_hvp activities to migrate to the mod_h5pactivity.';
 $string['pluginname'] = 'Migrate content from mod_hvp to mod_h5pactivity';
 $string['keeporiginal'] = 'Select what to do with the original activity once migrated';
