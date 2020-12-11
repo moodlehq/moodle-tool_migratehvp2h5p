@@ -161,12 +161,16 @@ class api {
      * is a good idea.
      *
      * @param  bool $count when true, returns the count SQL.
+     * @param  string $sort sorting criteria.
+     * @param  array $libraryids List of the library ids for the mod_hvp contents to migrate. Only contents with these
+     *               main libraries will be returned.
      * @return array containing sql to use and an array of params.
      */
-    public static function get_sql_hvp_to_migrate(bool $count = false, ?string $sort = null): array {
+    public static function get_sql_hvp_to_migrate(bool $count = false, ?string $sort = null, ?array $libraryids = null): array {
 
         self::fix_duplicated_hvp();
 
+        $params = [];
         if ($count) {
             $select = "COUNT(1)";
             $groupby = '';
@@ -174,6 +178,27 @@ class api {
             $select = 'h.id, h.course as courseid, c.fullname as course, h.name, hl.machine_name as contenttype,' .
             'COUNT(hc.id) as savedstate, cm.id as instanceid';
             $groupby = 'GROUP BY h.id, h.course, c.fullname, h.name, hl.machine_name, cm.id';
+        }
+
+        // Get only mod_hvp contents with main library in libraryids (if defined).
+        $where = 'mgr.id IS NULL';
+        if (!empty($libraryids)) {
+            $i = 1;
+            foreach ($libraryids as $libraryid) {
+                if (is_numeric($libraryid)) {
+                    if ($i > 1) {
+                        $where .= ' OR ';
+                    } else {
+                        $where .= ' AND (';
+                    }
+                    $where .= 'h.main_library_id = :libraryid' . $i;
+                    $params['libraryid' . $i] = $libraryid;
+                    $i++;
+                }
+            }
+            if ($i > 1) {
+                $where .= ')';
+            }
         }
 
         // We need to select the hvp activities which are not migrated but ignoring the activities in the recycle bin.
@@ -194,14 +219,14 @@ class api {
                                  AND i.id = mgrcm.instance AND mgrcm.deletioninprogress = 0
                        ) mgr
                        ON mgr.name = h.name AND mgr.timecreated = h.timecreated AND mgr.course = h.course
-                 WHERE mgr.id IS NULL
+                 WHERE $where
                        $groupby";
 
         if (!empty($sort)) {
             $sql .= " ORDER BY " . $sort;
         }
 
-        return [$sql, []];
+        return [$sql, $params];
     }
 
     /**
