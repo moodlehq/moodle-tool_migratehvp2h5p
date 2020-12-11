@@ -37,12 +37,14 @@ list($options, $unrecognized) = cli_get_params(
         'limit' => 100,
         'keeporiginal' => 1,
         'copy2cb' => api::COPY2CBYESWITHLINK,
+        'contenttypes' => [],
     ], [
         'e' => 'execute',
         'h' => 'help',
         'l' => 'limit',
         'k' => 'keeporiginal',
         'c' => 'copy2cb',
+        't' => 'contenttypes',
     ]
 );
 
@@ -60,8 +62,10 @@ Options:
  -e, --execute             Run the migration tool
  -k, --keeporiginal=N      After migration 0 will remove the original activity, 1 will keep it and 2 will hide it
  -c, --copy2cb=N           Whether H5P files should be added to the content bank with a link (1), as a copy (2) or not added (0)
+ -t, --contenttypes=N      The library ids, separated by commas, for the mod_hvp contents to migrate.
+                           Only contents having these libraries defined as main library will be migrated.
  -l  --limit=N             The maximmum number of activities per execution (default 100).
-                                Already migrated activities will be ignored.
+                           Already migrated activities will be ignored.
 
 Example:
 \$sudo -u www-data /usr/bin/php admin/tool/migratehvp2h5p/cli/migrate.php --execute
@@ -90,6 +94,12 @@ if (!isset($options['copy2cb'])) {
     $options['copy2cb'] = api::COPY2CBYESWITHLINK;
 }
 
+if (!empty($options['contenttypes'])) {
+    $ctparam = explode(',', $options['contenttypes']);
+} else {
+    $ctparam = [];
+}
+
 $keeporiginal = $options['keeporiginal'];
 $copy2cb = $options['copy2cb'];
 $limit = $options['limit'] ?? 100;
@@ -110,6 +120,18 @@ if (!is_numeric($copy2cb)) {
     exit(1);
 }
 
+$contenttypes = [];
+if (!empty($ctparam)) {
+    foreach ($ctparam as $contenttype) {
+        if (!is_numeric($contenttype)) {
+            echo "contenttypes must be a list of library ids separated by commas.\n";
+            exit(1);
+        } else {
+            $contenttypes[] = intval($contenttype);
+        }
+    }
+}
+
 core_php_time_limit::raise();
 
 // Increase memory limit.
@@ -124,7 +146,7 @@ mtrace("Server Time: {$humantimenow}\n");
 
 mtrace("Search for $limit non migrated hvp activites\n");
 
-list($sql, $params) = api::get_sql_hvp_to_migrate();
+list($sql, $params) = api::get_sql_hvp_to_migrate(false, null, $contenttypes);
 if (!empty($limit)) {
     $sql .= " LIMIT " . $limit;
 }
