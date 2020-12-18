@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Defines {@link \tool_migratehvp2h5p\privacy\provider} class.
+ * Defines privacy provider from tool migratehvp2h5p.
  *
  * @package     tool_migratehvp2h5p
  * @category    privacy
