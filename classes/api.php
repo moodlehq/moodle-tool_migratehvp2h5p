@@ -49,7 +49,6 @@ use core\output\notification;
  * @copyright   2020 Sara Arjona <sara@moodle.com>
  * @license     http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-
 class api {
 
     /** @var value to indicate the original hvp activity must be deleted after migration */
@@ -343,8 +342,8 @@ class api {
     /**
      * Copy tags from hvp to h5pactivity
      *
-     * @param type $hvpcm the hvp course_module
-     * @param type $h5pactivity the new activity object
+     * @param stdClass $hvpcm the hvp course_module
+     * @param stdClass $h5pactivity the new activity object
      */
     private static function copy_tags($hvpcm, $h5pactivity): void {
         $tags = core_tag_tag::get_item_tags_array('core', 'course_modules', $hvpcm->id);
@@ -355,8 +354,8 @@ class api {
     /**
      * Copy comptetences from hvp to h5pactivity
      *
-     * @param type $hvpcm the hvp course_module
-     * @param type $h5pactivity the new activity object
+     * @param stdClass $hvpcm the hvp course_module
+     * @param stdClass $h5pactivity the new activity object
      */
     private static function copy_competencies($hvpcm, $h5pactivity): void {
         // This allows us to do the copy, even if they have been disabled.
@@ -371,8 +370,8 @@ class api {
     /**
      * Copy completion from hvp to h5pactivity
      *
-     * @param type $hvpcm the hvp course_module
-     * @param type $h5pactivity the new activity object
+     * @param stdClass $hvpcm the hvp course_module
+     * @param stdClass $h5pactivity the new activity object
      */
     private static function copy_completion($hvpcm, $h5pactivity): void {
         $course = get_course($hvpcm->course);
@@ -584,6 +583,12 @@ class api {
         return $count;
     }
 
+    /**
+     * Helper method for duplicating grade item.
+     *
+     * @param stdClass $hvpgradeitem
+     * @param stdClass $h5pactivity
+     */
     private static function duplicate_grade_item(stdClass $hvpgradeitem, stdClass $h5pactivity) {
         global $DB;
 
@@ -619,6 +624,12 @@ class api {
         return $h5pgradeitem;
     }
 
+    /**
+     * Helper method for duplicating grade items.
+     *
+     * @param int $hvpgradeitemid
+     * @param int $h5pgradeitemid
+     */
     private static function duplicate_grades(int $hvpgradeitemid, int $h5pgradeitemid) {
         global $DB;
 
@@ -643,6 +654,12 @@ class api {
         return $count;
     }
 
+    /**
+     * Duplicate an attempt from mod_hvp into the new H5P actitity.
+     *
+     * @param int $hvpid
+     * @param stdClass $h5pactivitycm
+     */
     private static function create_h5pactivity_attempts(int $hvpid, stdClass $h5pactivitycm) {
         global $DB;
 
@@ -705,6 +722,12 @@ class api {
         }
     }
 
+    /**
+     * Helper method to trigger migration event.
+     *
+     * @param stdClass $hvp
+     * @param stdClass $h5pactivity
+     */
     private static function trigger_migration_event(stdClass $hvp, stdClass $h5pactivity) {
         global $USER, $DB;
 

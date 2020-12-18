@@ -15,8 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * This tool can upgrade mod_hvp activities, created and maintained by Joubel to the new mod_h5p activity,
- * created by Moodle HQ.
+ * This tool can upgrade mod_hvp activities (Joubel) to the new mod_h5p activity (Moodle HQ).
  *
  * The upgrade can be done on any HVP activity instance.
  * The new HP5activity module was introduced in Moodle 3.9 and although it almost reproduces
