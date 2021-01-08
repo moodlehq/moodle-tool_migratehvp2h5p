@@ -407,7 +407,6 @@ class api {
         $exportfilename = $hvp->slug . '-' . $hvp->id . '.h5p';
         $fs = get_file_storage();
         $exportfile = $fs->get_file($coursecontext->id, 'mod_hvp', 'exports', 0, '/', $exportfilename);
-        mtrace($exportfilename);
         if (empty($exportfile)) {
             // We need to generate the H5P file.
             // There are two scenarios where hvp don't create the package file:
@@ -421,7 +420,7 @@ class api {
             $course = $DB->get_record('course', ['id' => $hvp->course], '*', MUST_EXIST);
             $COURSE = $course;
             // Trigger a fake visualization will create the export file.
-            $view    = new \mod_hvp\view_assets($hvp->cm, $course);
+            $view = new \mod_hvp\view_assets($hvp->cm, $course);
             // Slug value can change on export.
             $hvp->slug = $DB->get_field('hvp', 'slug', ['id' => $hvp->id]);
             $exportfilename = $hvp->slug . '-' . $hvp->id . '.h5p';
@@ -455,6 +454,20 @@ class api {
                 $content->set_name($hvp->name);
             }
             $cbfile = $content->get_file();
+            if (is_null($cbfile)) {
+                // Moodle 3.9.1 doesn't create the file in $cb->create_content_from_file so it has to be created manually.
+                $filerecord = [
+                    'component' => 'contentbank',
+                    'filearea'  => 'public',
+                    'itemid'    => $content->get_id(),
+                    'author'    => fullname($USER),
+                    'filepath'  => '/',
+                    'filename'  => $exportfile->get_filename(),
+                    'contextid' => $coursecontext->id,
+                ];
+                $file = $fs->create_file_from_storedfile($filerecord, $exportfile);
+                $cbfile = $content->get_file();
+            }
 
             $activityfilerecord = [
                 'component' => 'user',
