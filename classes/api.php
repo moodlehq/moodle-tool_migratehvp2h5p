@@ -331,7 +331,6 @@ class api {
         // Update couse_module information.
         $h5pcm = self::add_course_module_to_section($hvpcm, $h5pactivity->cm->id);
 
-        // TODO: completion.
         self::copy_tags($hvpcm, $h5pactivity);
         self::copy_competencies($hvpcm, $h5pactivity);
         self::copy_completion($hvpcm, $h5pactivity);
@@ -379,15 +378,16 @@ class api {
         if ($completion->is_enabled($hvpcm)) {
             $users = $completion->get_tracked_users();
             foreach ($users as $user) {
-                $status = $completion->get_data($hvpcm, false, $user->id);
-                if ($status->viewed) {
-                    $completion->set_module_viewed($h5pactivity->cm, $status->userid);
+                $data = $completion->get_data($hvpcm, false, $user->id);
+                if ($data->completionstate) {
+                    // If the mod_hvp has completionstate higher than 0, create a completion status entry for mod_h5pactivity.
+                    $data->id = 0;
+                    $data->coursemoduleid = $h5pactivity->cm->id;
+                    $completion->internal_set_data($h5pactivity->cm, $data);
                 }
-                $completion->update_state($h5pactivity->cm, $status->completionstate, $status->userid);
             }
         }
     }
-
 
     /**
      * Helper function to create draft .h5p file from an existing mod_hvp activity.
