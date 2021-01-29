@@ -25,24 +25,25 @@ namespace tool_migratehvp2h5p;
 
 defined('MOODLE_INTERNAL') || die;
 
-require_once($CFG->dirroot. '/course/lib.php');
-require_once($CFG->dirroot. '/mod/hvp/locallib.php');
-require_once($CFG->dirroot . '/tag/lib.php');
+require_once($CFG->dirroot . '/course/lib.php');
 require_once($CFG->dirroot . '/lib/completionlib.php');
+require_once($CFG->dirroot . '/mod/hvp/locallib.php');
+require_once($CFG->dirroot . '/repository/lib.php');
+require_once($CFG->dirroot . '/tag/lib.php');
 
-use context_course;
-use context_module;
-use context_user;
 use stdClass;
 use stored_file;
-use mod_h5pactivity\local\attempt;
-use tool_migratehvp2h5p\event\hvp_migrated;
-use moodle_exception;
+use context_user;
 use core_tag_tag;
+use context_course;
+use context_module;
 use completion_info;
-use core_competency\api as competencyapi;
+use moodle_exception;
 use core\output\notification;
-
+use mod_h5pactivity\local\attempt;
+use core_competency\api as competencyapi;
+use repository;
+use tool_migratehvp2h5p\event\hvp_migrated;
 /**
  * Class containing helper methods for processing mod_hvp migrations.
  *
@@ -479,6 +480,7 @@ class api {
                 'contextid' => $usercontext->id,
             ];
 
+            $copyfile = true;
             if ($copy2cb == self::COPY2CBYESWITHLINK) {
                 // The H5P file will be a reference to the content bank file.
                 $cbfilerecord = [
@@ -492,10 +494,18 @@ class api {
                 ];
                 $reference = \file_storage::pack_reference($cbfilerecord);
 
-                $repository = $DB->get_record('repository', ['type' => 'contentbank']);
-                $file = $fs->create_file_from_reference($activityfilerecord, $repository->id, $reference);
-            } else {
-                // Apart from adding the file to the content bank, a copy for the activity has to be created too.
+                // File will be linked only if contentbank repository is enabled (regardless if it's visible or hidden).
+                $repo = repository::get_instances(['type' => 'contentbank', 'onlyvisible' => false]);
+                if (!empty($repo)) {
+                    $repo = array_pop($repo);
+                    $file = $fs->create_file_from_reference($activityfilerecord, $repo->id, $reference);
+                    $copyfile = false;
+                }
+            }
+
+            if ($copyfile) {
+                // No linked file exists because contentbank repository is not enabled at this context or $copy2cb setting is
+                // not set to create a link, so a copy for the activity has to be created.
                 $file = $fs->create_file_from_storedfile($activityfilerecord, $exportfile);
             }
         }
