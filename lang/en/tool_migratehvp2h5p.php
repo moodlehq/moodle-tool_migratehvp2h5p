@@ -32,13 +32,18 @@ $string['copy2cb'] = 'Should these contents be added to the content bank?';
 $string['copy2cb_yeswithlink'] = 'Yes, and a link to these files should be used in the activity';
 $string['copy2cb_yeswithoutlink'] = 'Yes, but a copy will be used in the activity (changes in the content bank won\'t be reflected in the activity)';
 $string['copy2cb_no'] = 'No, they should be only created in the activity.';
+$string['error_contenttypeh5p_disabled'] = "H5P contentbank type is disabled. It must be enabled to migrate activities from mod_hvp
+and add them to the content bank too. You can enable this contentytype from 'Site administration | Plugins | Content bank | Manage
+content types' or run again the migration tool and select 'No, they should be only created in the activity.' (or 'copy2cb=0' if
+you're running CLI) to avoid creating files in content bank.";
+$string['error_modh5pactivity_disabled'] = 'H5P activity is disabled. It must be enabled to migrate activities from mod_hvp';
 $string['event_hvp_migrated'] = 'mod_hvp migrated to mod_h5pactivity';
 $string['graded'] = 'Graded users';
 $string['hvpactivities'] = 'Pending mod_hvp activities';
 $string['id'] = 'Id';
 $string['migrate'] = 'Migrate';
 $string['migrate_success'] = 'Hvp activity with id {$a} migrated successfully';
-$string['migrate_fail'] = 'Error migration hvp activity with id {$a}';
+$string['migrate_fail'] = 'Error migrating hvp activity with id {$a}';
 $string['migrate_gradesoverridden'] = 'Original mod_hvp activity "{$a->name}", with id {$a->id}, migrated successfully. However,
     it has some grading information overridden, such as feedback, which hasn\'t been migrated because the original activity is
     configured with an invalid maximum grade (it has to be higher than 0 in order to be migrated to the gradebook).';

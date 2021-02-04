@@ -32,6 +32,7 @@ require_once($CFG->dirroot . '/repository/lib.php');
 require_once($CFG->dirroot . '/tag/lib.php');
 
 use stdClass;
+use repository;
 use stored_file;
 use context_user;
 use core_tag_tag;
@@ -39,10 +40,10 @@ use context_course;
 use context_module;
 use completion_info;
 use moodle_exception;
+use core_plugin_manager;
 use core\output\notification;
 use mod_h5pactivity\local\attempt;
 use core_competency\api as competencyapi;
-use repository;
 use tool_migratehvp2h5p\event\hvp_migrated;
 /**
  * Class containing helper methods for processing mod_hvp migrations.
@@ -82,6 +83,8 @@ class api {
     public static function migrate_hvp2h5p(int $hvpid, int $keeporiginal = self::KEEPORIGINAL,
             int $copy2cb = self::COPY2CBYESWITHLINK): array {
         global $DB;
+
+        self::check_requirements($copy2cb);
 
         $messages = [];
         $transaction = $DB->start_delegated_transaction();
@@ -151,6 +154,26 @@ class api {
         $transaction->allow_commit();
 
         return $messages;
+    }
+
+    /**
+     * Check minimum requirements for the migration tool  are met, such as the H5P activity enabled.
+     * An exception will be thrown if some of the requirements are not met.
+     *
+     * @param int $copy2cb Whether H5P files should be added to the content bank or not.
+     * @return void
+     * @throws moodle_exception if some requirement is not met.
+     */
+    public static function check_requirements(int $copy2cb) {
+        $plugins = core_plugin_manager::instance()->get_enabled_plugins('mod');
+        if (!array_key_exists('h5pactivity', $plugins)) {
+            throw new moodle_exception('error_modh5pactivity_disabled', 'tool_migratehvp2h5p');
+        }
+
+        $contentbanktypes = core_plugin_manager::instance()->get_enabled_plugins('contenttype');
+        if ($copy2cb != self::COPY2CBNO && !array_key_exists('h5p', $contentbanktypes)) {
+            throw new moodle_exception('error_contenttypeh5p_disabled', 'tool_migratehvp2h5p');
+        }
     }
 
     /**

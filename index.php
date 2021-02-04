@@ -66,6 +66,12 @@ if (!empty($activityids)) {
             $notices[] = [$errormsg, notification::NOTIFY_ERROR];
         }
     }
+} else {
+    try {
+        api::check_requirements($copy2cb);
+    } catch (moodle_exception $e) {
+        $notices[] = [$e->getMessage(), notification::NOTIFY_ERROR];
+    }
 }
 
 $PAGE->set_context($context);

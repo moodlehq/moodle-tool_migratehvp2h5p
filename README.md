@@ -18,7 +18,7 @@ There are two ways to execute the activity migration:
 
 Migrations tool will scan for non migrated hvp activities and will create as many H5P activities as needed.
 
-By default, the CLI method will only migrate up to 100 hvp activities per execution and will keep the originals hvp in the courses. Use the option "--help" to know the CLI params to change this behavior to increase the migration limit or delete/hide the originals hvp.
+By default, the CLI method will only migrate up to 100 hvp activities per execution, will keep the originals hvp in the courses and will add a link to the content bank. Use the option "--help" to know the CLI params to change this behavior to increase the migration limit, delete/hide the originals hvp, decide whether to link/copy to the content bank or filter by content type.
 
 The tool will only migrate each hvp once. In case you need to re-migrate an hvp, just remove or rename the migrated h5p activity, this way the tool won't detect the hvp as migrated.
 
@@ -27,7 +27,13 @@ The tool will only migrate each hvp once. In case you need to re-migrate an hvp,
 This tools requires both core H5P and the third party plugin (mod_hvp) installed in the system. The minimum requirements are:
 
 * Moodle core 3.9: otherwise the H5P activity is not present
-* HVP activity 2020020500 or more: in previous versions this migraiton tool won't work
+* HVP activity 2020020500 or more: in previous versions this migration tool won't work
+* H5P core activity enabled
+
+Apart from that, for adding contents to the content bank too (so it's not strictly required if contents won't be migrated to the content bank):
+
+* H5P content type of the content bank enabled
+* Content bank repository enabled
 
 ## License ##
 
