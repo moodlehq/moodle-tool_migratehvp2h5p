@@ -1,5 +1,16 @@
 # VERSIONS HISTORY #
 
+Changes in version 0.1.4 (20210204) - Let's make it better!
+---------------------------------------------------
+- Copy completion information related to grades too (#27)
+- Check if contentbank repository is enabled or not (#30)
+- Check required plugins are enabled (#32)
+- Create manually CB file when it is null (#25)
+- Other fixes and improvements:
+  * Add GitHub action support (#22)
+
+Thanks to Jordan, Ramon Ovelar, Adrian Perez and all the contributors who have created issues, fixes and improvements.
+
 Changes in version 0.1.3 (2020121100) - Hurray project week!
 ---------------------------------------------------
 - Let admins copy files to content bank too (#11)
