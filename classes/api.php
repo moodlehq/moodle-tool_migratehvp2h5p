@@ -472,7 +472,28 @@ class api {
         if ($copy2cb == self::COPY2CBYESWITHLINK || $copy2cb == self::COPY2CBYESWITHOUTLINK) {
             // The file should be uploaded to the content bank.
             $cb = new \core_contentbank\contentbank();
-            $content = $cb->create_content_from_file($coursecontext, $USER->id, $file);
+
+            // Get the author of the HVP activity. As it can't be obtained directly from hvp tables, it will be taken from logs.
+            $authorid = null;
+            $manager = get_log_manager(true);
+            $stores = $manager->get_readers();
+            $store = $stores['logstore_standard'];
+            if (!empty($store)) {
+                $select = "component = 'core' AND action = 'created' AND target = 'course_module' AND objectid = :objectid AND
+                        courseid = :courseid";
+                $params = ['objectid' => $hvp->cm->id, 'courseid' => $hvp->course];
+                $creationlog = $store->get_events_select($select, $params, 'id DESC', 0, 1);
+                if (!empty($creationlog)) {
+                    $creationlog = reset($creationlog);
+                    $authorid = $creationlog->get_data()['userid'];
+                }
+            }
+            if (empty($authorid)) {
+                $authorid = $USER->id;
+            }
+
+            // Create the content in the content bank.
+            $content = $cb->create_content_from_file($coursecontext, $authorid, $file);
             if ($hvp->name) {
                 // Set name in content bank in order to make easier to find it later.
                 $content->set_name($hvp->name);
