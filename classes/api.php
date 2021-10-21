@@ -391,6 +391,60 @@ class api {
     }
 
     /**
+     * Get the author of the HVP activity
+     * As the user who created the HVP instance can't be obtained directly from mod_hvp tables, it
+     * will be determined from other sources:
+     *   - the user id from log table, or
+     *   - the user id from an asset, if one exists, in the files table, or
+     *   - the first editing teacher or course administrator in the course, having regard for any
+     *       settings that control how to determine who the editing teachers are, or
+     *   - fall back to the user id that is running the import.
+     *
+     * TODO: write unit tests that cover the above scenarios.
+     *
+     */
+    private static function get_hvp_author(stdClass $hvp): string {
+        $authorid = null;
+
+        // First, try the log.
+        $manager = get_log_manager(true);
+        $stores = $manager->get_readers();
+        $store = $stores['logstore_standard'];
+        if (!empty($store)) {
+            $select = "component = 'core' AND action = 'created' AND target = 'course_module' AND objectid = :objectid AND
+                    courseid = :courseid";
+            $params = ['objectid' => $hvp->cm->id, 'courseid' => $hvp->course];
+            $creationlog = $store->get_events_select($select, $params, 'id DESC', 0, 1);
+            if (!empty($creationlog)) {
+                $creationlog = reset($creationlog);
+                $authorid = $creationlog->get_data()['userid'];
+            }
+        }
+
+        // Failing that, try the files table.
+        if (empty($authorid)) {
+            // TODO: not sure how to do this yet.
+        }
+
+        // Failing that, grab the first editing teacher or course administrator.
+        // (having regard for settings that control how to determine who the editing teachers are)
+        if (empty($authorid)) {
+            $coursecontext = context_course::instance($hvp->course);
+            $editors = get_users_by_capability($context, 'moodle/course:update', 'u.id');
+            if (!empty($editors)) {
+                $authorid = array_keys($editors)[0];
+            }
+        }
+
+        // If all else fails, fall back to the user running the migration.
+        if (empty($authorid)) {
+            $authorid = $USER->id;
+        }
+
+        return $authorid;
+    }
+
+    /**
      * Copy completion from hvp to h5pactivity
      *
      * @param stdClass $hvpcm the hvp course_module
@@ -473,27 +527,9 @@ class api {
             // The file should be uploaded to the content bank.
             $cb = new \core_contentbank\contentbank();
 
-            // Get the author of the HVP activity. As it can't be obtained directly from hvp tables, it will be taken from logs.
-            $authorid = null;
-            $manager = get_log_manager(true);
-            $stores = $manager->get_readers();
-            $store = $stores['logstore_standard'];
-            if (!empty($store)) {
-                $select = "component = 'core' AND action = 'created' AND target = 'course_module' AND objectid = :objectid AND
-                        courseid = :courseid";
-                $params = ['objectid' => $hvp->cm->id, 'courseid' => $hvp->course];
-                $creationlog = $store->get_events_select($select, $params, 'id DESC', 0, 1);
-                if (!empty($creationlog)) {
-                    $creationlog = reset($creationlog);
-                    $authorid = $creationlog->get_data()['userid'];
-                }
-            }
-            if (empty($authorid)) {
-                $authorid = $USER->id;
-            }
 
             // Create the content in the content bank.
-            $content = $cb->create_content_from_file($coursecontext, $authorid, $file);
+            $content = $cb->create_content_from_file($coursecontext, get_hvp_author($hvp), $file);
             if ($hvp->name) {
                 // Set name in content bank in order to make easier to find it later.
                 $content->set_name($hvp->name);
