@@ -400,15 +400,17 @@ class api {
      *       settings that control how to determine who the editing teachers are, or
      *   - fall back to the user id that is running the import.
      *
-     * TODO: write unit tests that cover the above scenarios.
-     *
+     * @param stdClass $hvp The HVP activity.
+     * @return string The author identifier.
      */
-    private static function get_hvp_author(stdClass $hvp): string {
+    public static function get_hvp_author(stdClass $hvp): string {
+        global $DB, $USER;
         $authorid = null;
 
         // First, try the log.
         $manager = get_log_manager(true);
         $stores = $manager->get_readers();
+        /** @var \logstore_standard\log\store $store */
         $store = $stores['logstore_standard'];
         if (!empty($store)) {
             $select = "component = 'core' AND action = 'created' AND target = 'course_module' AND objectid = :objectid AND
@@ -423,15 +425,41 @@ class api {
 
         // Failing that, try the files table.
         if (empty($authorid)) {
-            // TODO: not sure how to do this yet.
+            $coursecontext = context_course::instance($hvp->course);
+
+            // If this HVP uses any files, fetch any userids encountered.
+            $fileusersql = "SELECT DISTINCT f.userid AS id
+                FROM {hvp} h
+                    INNER JOIN {course_modules} cm ON cm.instance = h.id
+                    INNER JOIN {modules} m ON m.id = cm.module
+                    INNER JOIN {context} cx ON cx.instanceid = cm.id
+                    INNER JOIN {files} f ON f.contextid = cx.id
+                WHERE m.name = 'hvp' AND h.id = :id
+                    AND cx.contextlevel = " . CONTEXT_MODULE . " AND f.userid IS NOT NULL
+                GROUP BY f.userid ORDER BY f.userid";
+            $fileuser = $DB->get_recordset_sql($fileusersql, [ 'id' => $hvp->id ]);
+
+            // Use the first user that can also edit their own content bank items.
+            foreach ($fileuser as $u) {
+                if (has_capability('moodle/contentbank:manageowncontent',  $coursecontext, $u->id)) {
+                    $authorid = $u->id;
+                    break;
+                }
+            }
         }
 
-        // Failing that, grab the first editing teacher or course administrator.
-        // (having regard for settings that control how to determine who the editing teachers are)
+        // Failing that, grab the first editingteacher (can manage own content bank items).
         if (empty($authorid)) {
-            $coursecontext = context_course::instance($hvp->course);
-            $editors = get_users_by_capability($context, 'moodle/course:update', 'u.id');
+            $editors = get_users_by_capability($coursecontext, 'moodle/contentbank:manageowncontent', 'u.id');
             if (!empty($editors)) {
+                $authorid = array_keys($editors)[0];
+            }
+        }
+
+        // Failing that, fall back to a coursecreator/manager (can manage any content bank items).
+        if (empty($authorid)) {
+            $creators = get_users_by_capability($coursecontext, 'moodle/contentbank:manageanycontent', 'u.id');
+            if (!empty($creators)) {
                 $authorid = array_keys($editors)[0];
             }
         }
@@ -527,9 +555,8 @@ class api {
             // The file should be uploaded to the content bank.
             $cb = new \core_contentbank\contentbank();
 
-
             // Create the content in the content bank.
-            $content = $cb->create_content_from_file($coursecontext, get_hvp_author($hvp), $file);
+            $content = $cb->create_content_from_file($coursecontext, self::get_hvp_author($hvp), $file);
             if ($hvp->name) {
                 // Set name in content bank in order to make easier to find it later.
                 $content->set_name($hvp->name);
