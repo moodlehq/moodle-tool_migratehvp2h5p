@@ -403,7 +403,8 @@ class api {
      * TODO: write unit tests that cover the above scenarios.
      *
      */
-    private static function get_hvp_author(stdClass $hvp): string {
+    public static function get_hvp_author(stdClass $hvp): string {
+        global $DB, $USER;
         $authorid = null;
 
         // First, try the log.
@@ -423,15 +424,41 @@ class api {
 
         // Failing that, try the files table.
         if (empty($authorid)) {
-            // TODO: not sure how to do this yet.
+            $coursecontext = context_course::instance($hvp->course);
+
+            // If this HVP uses any files, fetch any userids encountered.
+            $fileusersql = "SELECT DISTINCT f.userid AS id
+                FROM {hvp} h
+                    INNER JOIN {course_modules} cm ON cm.instance = h.id
+                    INNER JOIN {modules} m ON m.id = cm.module
+                    INNER JOIN {context} cx ON cx.instanceid = cm.id
+                    INNER JOIN {files} f ON f.contextid = cx.id
+                WHERE m.name = 'hvp' AND h.id = :id
+                    AND cx.contextlevel = " . CONTEXT_MODULE . " AND f.userid IS NOT NULL
+                GROUP BY f.userid ORDER BY f.userid";
+            $fileuser = $DB->get_recordset_sql($fileusersql, [ 'id' => $hvp->id ]);
+
+            // Use the first user that can also edit their own content bank items.
+            foreach ($fileuser as $u) {
+                if (has_capability('moodle/contentbank:manageowncontent',  $coursecontext, $u->id)) {
+                    $authorid = $u->id;
+                    break;
+                }
+            }
         }
 
-        // Failing that, grab the first editing teacher or course administrator.
-        // (having regard for settings that control how to determine who the editing teachers are)
+        // Failing that, grab the first editingteacher (can manage own content bank items)
         if (empty($authorid)) {
-            $coursecontext = context_course::instance($hvp->course);
-            $editors = get_users_by_capability($context, 'moodle/course:update', 'u.id');
+            $editors = get_users_by_capability($coursecontext, 'moodle/contentbank:manageowncontent', 'u.id');
             if (!empty($editors)) {
+                $authorid = array_keys($editors)[0];
+            }
+        }
+
+        // Failing that, fall back to a coursecreator/manager (can manage any content bank items).
+        if (empty($authorid)) {
+            $creators = get_users_by_capability($coursecontext, 'moodle/contentbank:manageanycontent', 'u.id');
+            if (!empty($creators)) {
                 $authorid = array_keys($editors)[0];
             }
         }
