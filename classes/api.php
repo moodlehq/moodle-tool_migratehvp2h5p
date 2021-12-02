@@ -399,9 +399,6 @@ class api {
      *   - the first editing teacher or course administrator in the course, having regard for any
      *       settings that control how to determine who the editing teachers are, or
      *   - fall back to the user id that is running the import.
-     *
-     * TODO: write unit tests that cover the above scenarios.
-     *
      */
     public static function get_hvp_author(stdClass $hvp): string {
         global $DB, $USER;
