@@ -21,6 +21,8 @@ Migrations tool will scan for non migrated hvp activities and will create as man
 
 By default, the CLI method will only migrate up to 100 hvp activities per execution, will keep the originals hvp in the courses and will add a link to the content bank. Use the option "--help" to know the CLI params to change this behavior to increase the migration limit, delete/hide the originals hvp, decide whether to link/copy to the content bank or filter by content type.
 
+The CLI tool also has an option to output the previous and new course module ids, name and embed links to a CSV file, using `--csvfile`
+
 The tool will only migrate each hvp once. In case you need to re-migrate an hvp, just remove or rename the migrated h5p activity, this way the tool won't detect the hvp as migrated.
 
 # Tool dependencies #

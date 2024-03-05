@@ -29,6 +29,7 @@ define('CLI_SCRIPT', true);
 require(__DIR__ . '/../../../../config.php');
 require_once("{$CFG->libdir}/clilib.php");
 require_once("{$CFG->libdir}/cronlib.php");
+require_once($CFG->libdir . '/csvlib.class.php');
 
 list($options, $unrecognized) = cli_get_params(
     [
@@ -38,6 +39,7 @@ list($options, $unrecognized) = cli_get_params(
         'keeporiginal' => 1,
         'copy2cb' => api::COPY2CBYESWITHLINK,
         'contenttypes' => [],
+        'csvfile' => '',
     ], [
         'e' => 'execute',
         'h' => 'help',
@@ -45,6 +47,7 @@ list($options, $unrecognized) = cli_get_params(
         'k' => 'keeporiginal',
         'c' => 'copy2cb',
         't' => 'contenttypes',
+        'f' => 'csvfile',
     ]
 );
 
@@ -66,6 +69,7 @@ Options:
                            Only contents having these libraries defined as main library will be migrated.
  -l  --limit=N             The maximmum number of activities per execution (default 100).
                            Already migrated activities will be ignored.
+ -f  --csvfile             If given, will output data before and after to the given CSV.
 
 Example:
 \$sudo -u www-data /usr/bin/php admin/tool/migratehvp2h5p/cli/migrate.php --execute
@@ -154,6 +158,13 @@ if (empty($activities)) {
     exit(1);
 }
 
+// Load CSV file for writing if given.
+$writer = null;
+if (!empty($options['csvfile'])) {
+    $writer = new csv_export_writer();
+    $writer->add_data(['oldcmid', 'oldname', 'oldembed', 'newcmid', 'newname', 'newembed']);
+}
+
 foreach ($activities as $hvpid => $info) {
     mtrace("Migrating ID:$hvpid\t{$info->name}\t course:{$info->courseid}\t{$info->course}");
     if (empty($execute)) {
@@ -161,7 +172,7 @@ foreach ($activities as $hvpid => $info) {
         continue;
     }
     try {
-        $messages = tool_migratehvp2h5p\api::migrate_hvp2h5p($hvpid, $keeporiginal, $copy2cb);
+        $messages = tool_migratehvp2h5p\api::migrate_hvp2h5p($hvpid, $keeporiginal, $copy2cb, $writer);
         if (empty($messages)) {
             mtrace("\t ...Successful\n");
         } else {
@@ -173,4 +184,9 @@ foreach ($activities as $hvpid => $info) {
         mtrace("\tException: ".$e->getMessage()."\n");
         mtrace("\t ...Failed!\n");
     }
+}
+
+if (!empty($writer) && !empty($options['csvfile'] && $execute)) {
+    $output = $writer->print_csv_data(true);
+    file_put_contents($options['csvfile'], $output);
 }

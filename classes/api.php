@@ -30,6 +30,7 @@ require_once($CFG->dirroot . '/lib/completionlib.php');
 require_once($CFG->dirroot . '/mod/hvp/locallib.php');
 require_once($CFG->dirroot . '/repository/lib.php');
 require_once($CFG->dirroot . '/tag/lib.php');
+require_once($CFG->libdir . '/csvlib.class.php');
 
 use stdClass;
 use repository;
@@ -44,6 +45,8 @@ use core_plugin_manager;
 use core\output\notification;
 use mod_h5pactivity\local\attempt;
 use core_competency\api as competencyapi;
+use csv_export_writer;
+use moodle_url;
 use tool_migratehvp2h5p\event\hvp_migrated;
 /**
  * Class containing helper methods for processing mod_hvp migrations.
@@ -77,11 +80,12 @@ class api {
      * @param int $hvpid The mod_hvp of the activity to migrate.
      * @param int $keeporiginal 0 delete the original hvp, 1 keep it, 2 hides it
      * @param int $copy2cb Whether H5P files should be added to the content bank or not.
+     * @param string $csvwritepath If given, will write a CSV containing the data before and after migration.
      * @return array Messages to be displayed (related to the migration process).
      * @throws moodle_exception if something happens during the migration
      */
     public static function migrate_hvp2h5p(int $hvpid, int $keeporiginal = self::KEEPORIGINAL,
-            int $copy2cb = self::COPY2CBYESWITHLINK): array {
+            int $copy2cb = self::COPY2CBYESWITHLINK, csv_export_writer $csvwriter = null): array {
         global $DB;
 
         self::check_requirements($copy2cb);
@@ -135,6 +139,34 @@ class api {
                         ];
                     }
                 }
+            }
+
+            // If writing to CSV, get some additional data.
+            if (!empty($csvwriter)) {
+                // Build the new embed link.
+                // For new h5pactivty, this is based off the 'package' file.
+                // We do not know the name of this file, so it must be queried.
+                $newcontext = context_module::instance($h5pactivity->cmid);
+                $fs = get_file_storage();
+                $h5pcontentfile = current($fs->get_area_files($newcontext->id, 'mod_h5pactivity', 'package', 0, "itemid", false));
+                $newh5pfileurl = moodle_url::make_pluginfile_url(
+                    $h5pcontentfile->get_contextid(),
+                    $h5pcontentfile->get_component(),
+                    $h5pcontentfile->get_filearea(),
+                    $h5pcontentfile->get_itemid(),
+                    $h5pcontentfile->get_filepath(),
+                    $h5pcontentfile->get_filename(),
+                    false
+                );
+                $newlink = new moodle_url('/h5p/embed.php', ['url' => $newh5pfileurl]);
+
+                // The old mod_hvp embed links only use the cmid.
+                $oldcmid = get_coursemodule_from_instance('hvp', $hvp->id)->id;
+                $oldlink = new moodle_url('/mod/hvp/embed.php', ['id' => $oldcmid]);
+
+                // Write this to the CSV.
+                $data = [$oldcmid, $hvp->name, $oldlink, $h5pactivity->cmid, $h5pactivity->name, $newlink];
+                $csvwriter->add_data($data);
             }
 
             self::trigger_migration_event($hvp, $h5pactivity);
