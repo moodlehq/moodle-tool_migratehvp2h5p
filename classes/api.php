@@ -80,8 +80,11 @@ class api {
      * @return array Messages to be displayed (related to the migration process).
      * @throws moodle_exception if something happens during the migration
      */
-    public static function migrate_hvp2h5p(int $hvpid, int $keeporiginal = self::KEEPORIGINAL,
-            int $copy2cb = self::COPY2CBYESWITHLINK): array {
+    public static function migrate_hvp2h5p(
+        int $hvpid,
+        int $keeporiginal = self::KEEPORIGINAL,
+        int $copy2cb = self::COPY2CBYESWITHLINK
+    ): array {
         global $DB;
 
         self::check_requirements($copy2cb);
@@ -126,12 +129,12 @@ class api {
                         $tmpkeeporiginal = self::HIDEORIGINAL;
                         $messages[] = [
                             get_string('migrate_gradesoverridden_notdelete', 'tool_migratehvp2h5p', $params),
-                            notification::NOTIFY_WARNING
+                            notification::NOTIFY_WARNING,
                         ];
                     } else {
                         $messages[] = [
                             get_string('migrate_gradesoverridden', 'tool_migratehvp2h5p', $params),
-                            notification::NOTIFY_WARNING
+                            notification::NOTIFY_WARNING,
                         ];
                     }
                 }
@@ -183,13 +186,17 @@ class api {
      * the CLI migrate.php command. The SQL is quite complex so having it in one place
      * is a good idea.
      *
-     * @param  bool $count when true, returns the count SQL.
-     * @param  string $sort sorting criteria.
-     * @param  array $libraryids List of the library ids for the mod_hvp contents to migrate. Only contents with these
+     * @param bool $count when true, returns the count SQL.
+     * @param string|null $sort sorting criteria.
+     * @param array|null $libraryids List of the library ids for the mod_hvp contents to migrate. Only contents with these
      *               main libraries will be returned.
      * @return array containing sql to use and an array of params.
      */
-    public static function get_sql_hvp_to_migrate(bool $count = false, ?string $sort = null, ?array $libraryids = null): array {
+    public static function get_sql_hvp_to_migrate(
+        bool $count = false,
+        ?string $sort = null,
+        ?array $libraryids = null
+    ): array {
 
         self::fix_duplicated_hvp();
 
@@ -292,12 +299,16 @@ class api {
     /**
      * Create an h5pactivity copying information from the existing $hvp activity.
      *
-     * @param  stdClass $hvp The mod_hvp activity to be migrated from.
-     * @param  stdClass $hvpgradeitem This information is required to update the h5pactivity grading information.
-     * @param  int $copy2cb Whether H5P files should be added to the content bank or not.
+     * @param stdClass $hvp The mod_hvp activity to be migrated from.
+     * @param stdClass $hvpgradeitem This information is required to update the h5pactivity grading information.
+     * @param int $copy2cb Whether H5P files should be added to the content bank or not.
      * @return stdClass|null The new h5pactivity created from the $hvp activity.
      */
-    private static function create_mod_h5pactivity(stdClass $hvp, stdClass $hvpgradeitem, int $copy2cb): ?stdClass {
+    private static function create_mod_h5pactivity(
+        stdClass $hvp,
+        stdClass $hvpgradeitem,
+        int $copy2cb
+    ): ?stdClass {
         global $CFG, $DB;
 
         require_once($CFG->dirroot . '/mod/h5pactivity/lib.php');
@@ -368,7 +379,7 @@ class api {
      * @param stdClass $hvpcm the hvp course_module
      * @param stdClass $h5pactivity the new activity object
      */
-    private static function copy_tags($hvpcm, $h5pactivity): void {
+    private static function copy_tags(stdClass $hvpcm, stdClass $h5pactivity): void {
         $tags = core_tag_tag::get_item_tags_array('core', 'course_modules', $hvpcm->id);
         $h5pcontext = context_module::instance($h5pactivity->coursemodule);
         core_tag_tag::set_item_tags('core', 'course_modules', $h5pactivity->coursemodule, $h5pcontext, $tags);
@@ -478,7 +489,7 @@ class api {
      * @param stdClass $hvpcm the hvp course_module
      * @param stdClass $h5pactivity the new activity object
      */
-    private static function copy_completion($hvpcm, $h5pactivity): void {
+    private static function copy_completion(stdClass $hvpcm, stdClass $h5pactivity): void {
         $course = get_course($hvpcm->course);
         $completion = new completion_info($course);
         if ($completion->is_enabled($hvpcm)) {
@@ -662,7 +673,7 @@ class api {
      * Add the course module to the course section.
      *
      * @param stdClass $hvpcm
-     * @param int      $h5pcmid
+     * @param int $h5pcmid
      * @return stdClass|null The course module object for the h5pactivity.
      */
     private static function add_course_module_to_section(stdClass $hvpcm, int $h5pcmid): ?stdClass {
@@ -693,7 +704,11 @@ class api {
      * @param stdClass $h5pactivity mod_h5p object
      * @return int total of files copied.
      */
-    private static function copy_area_files(stdClass $hvp, stdClass $hvpcm, stdClass $h5pactivity): int {
+    private static function copy_area_files(
+        stdClass $hvp,
+        stdClass $hvpcm,
+        stdClass $h5pactivity
+    ): int {
         $count = 0;
 
         $hvpcontext = context_module::instance($hvpcm->id);

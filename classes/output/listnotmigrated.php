@@ -66,10 +66,19 @@ class listnotmigrated implements renderable, templatable {
                     'name' => 'keeporiginal',
                     'label' => get_string('keeporiginal', 'tool_migratehvp2h5p'),
                     'options' => [
-                            ['value' => api::HIDEORIGINAL, 'text' => get_string('keeporiginal_hide', 'tool_migratehvp2h5p')],
-                            ['value' => api::DELETEORIGINAL, 'text' => get_string('keeporiginal_delete', 'tool_migratehvp2h5p')],
-                            ['value' => api::KEEPORIGINAL, 'text' => get_string('keeporiginal_nothing', 'tool_migratehvp2h5p')],
-                    ]
+                        [
+                            'value' => api::HIDEORIGINAL,
+                            'text' => get_string('keeporiginal_hide', 'tool_migratehvp2h5p'),
+                        ],
+                        [
+                            'value' => api::DELETEORIGINAL,
+                            'text' => get_string('keeporiginal_delete', 'tool_migratehvp2h5p'),
+                        ],
+                        [
+                            'value' => api::KEEPORIGINAL,
+                            'text' => get_string('keeporiginal_nothing', 'tool_migratehvp2h5p'),
+                        ],
+                    ],
                 ],
                 [
                     'name' => 'copy2cb',
@@ -77,15 +86,15 @@ class listnotmigrated implements renderable, templatable {
                     'options' => [
                         [
                             'value' => api::COPY2CBYESWITHLINK,
-                            'text' => get_string('copy2cb_yeswithlink', 'tool_migratehvp2h5p')
+                            'text' => get_string('copy2cb_yeswithlink', 'tool_migratehvp2h5p'),
                         ],
                         [
                             'value' => api::COPY2CBYESWITHOUTLINK,
-                            'text' => get_string('copy2cb_yeswithoutlink', 'tool_migratehvp2h5p')
+                            'text' => get_string('copy2cb_yeswithoutlink', 'tool_migratehvp2h5p'),
                         ],
                         [
                             'value' => api::COPY2CBNO,
-                            'text' => get_string('copy2cb_no', 'tool_migratehvp2h5p')
+                            'text' => get_string('copy2cb_no', 'tool_migratehvp2h5p'),
                         ],
                     ],
                 ],

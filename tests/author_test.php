@@ -30,7 +30,7 @@ use stored_file;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  * @coversDefaultClass \tool_migratehvp2h5p\api
  */
-class author_test extends advanced_testcase {
+final class author_test extends advanced_testcase {
 
     /**
      * @var int The HVP module id.
