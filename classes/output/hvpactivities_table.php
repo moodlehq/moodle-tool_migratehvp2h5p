@@ -116,7 +116,7 @@ class hvpactivities_table extends table_sql {
      * @throws \moodle_exception
      * @throws \coding_exception
      */
-    public function col_select(stdClass $data):string {
+    public function col_select(stdClass $data): string {
         global $OUTPUT;
 
         $stringdata = [

@@ -124,7 +124,10 @@ class hvp_migrated extends base {
      */
     public static function get_other_mapping() {
         $othermapped = [
-            'h5pactivityid' => ['db' => 'h5pactivity', 'restore' => 'h5pactivity']
+            'h5pactivityid' => [
+                'db' => 'h5pactivity',
+                'restore' => 'h5pactivity',
+            ],
         ];
 
         return $othermapped;
