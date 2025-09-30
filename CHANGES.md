@@ -1,5 +1,11 @@
 # VERSIONS HISTORY
 
+## Changes in version 0.2.0 (20250930) - I'm a new me
+- Add Moodle 5.0 and 5.1 support
+- For Moodle 4.5 downwards, version 0.1.7 is the latest stable
+- Fix coding style
+- Bump GHA environments
+
 ## Changes in version 0.1.7 (20250120) - I'm still alive
 
 - Add Moodle 4.4 and 4.5 support

@@ -25,11 +25,11 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = 'tool_migratehvp2h5p';
-$plugin->release = '0.1.7';
-$plugin->version = 2025012000;
-$plugin->requires = 2023042400;
+$plugin->release = '0.2.0';
+$plugin->version = 2025093000;
+$plugin->requires = 2025041400;
 $plugin->maturity = MATURITY_STABLE;
 $plugin->dependencies = [
-    'mod_h5pactivity' => 2023042402,
+    'mod_h5pactivity' => 2025041400,
     'mod_hvp' => 2020020500,
 ];
