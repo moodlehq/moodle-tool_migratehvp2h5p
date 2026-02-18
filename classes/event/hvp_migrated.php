@@ -17,12 +17,12 @@
 /**
  * Migrated mod_hvp to mod_h5pactivity event.
  *
- * @package     tool_migratehvp2h5p
+ * @package     tool_migratehvp2026
  * @copyright   2020 Sara Arjona <sara@moodle.com>
  * @license     http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-namespace tool_migratehvp2h5p\event;
+namespace tool_migratehvp2026\event;
 
 use stdClass;
 use core\event\base;
@@ -30,7 +30,7 @@ use core\event\base;
 /**
  * Event hvp_migrated.
  *
- * @package     tool_migratehvp2h5p
+ * @package     tool_migratehvp2026
  * @copyright   2020 Sara Arjona <sara@moodle.com>
  * @license     http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -61,7 +61,7 @@ class hvp_migrated extends base {
      * @return string
      */
     public static function get_name() {
-        return get_string('event_hvp_migrated', 'tool_migratehvp2h5p');
+        return get_string('event_hvp_migrated', 'tool_migratehvp2026');
     }
 
     /**

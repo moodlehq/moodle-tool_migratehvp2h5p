@@ -17,7 +17,7 @@
 /**
  * Plugin administration pages are defined here.
  *
- * @package     tool_migratehvp2h5p
+ * @package     tool_migratehvp2026
  * @category    admin
  * @copyright   2020 Sara Arjona <sara@moodle.com>
  * @license     http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -29,8 +29,12 @@ if ($hassiteconfig) {
     $modhvp = core_plugin_manager::instance()->get_plugin_info('mod_hvp');
     if (!empty($modhvp)) {
         // The migration tool is only displayed when the HVP is installed.
-        $ADMIN->add('root', new admin_externalpage('migratehvp2h5p',
-                get_string('pluginname', 'tool_migratehvp2h5p'),
-                new moodle_url('/admin/tool/migratehvp2h5p/index.php')));
+        $ADMIN->add('root', new admin_externalpage('migratehvp2026',
+                get_string('pluginname', 'tool_migratehvp2026'),
+                new moodle_url('/admin/tool/migratehvp2026/index.php')));
+
+        $ADMIN->add('root', new admin_externalpage('migratehvp2026_failures',
+                get_string('failedmigrations', 'tool_migratehvp2026'),
+                new moodle_url('/admin/tool/migratehvp2026/failed.php')));
     }
 }

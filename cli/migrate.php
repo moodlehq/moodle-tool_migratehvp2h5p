@@ -17,12 +17,12 @@
 /**
  * CLI command to migrate mod_hvp to mod_h5pactivity.
  *
- * @package    tool_migratehvp2h5p
+ * @package    tool_migratehvp2026
  * @copyright  2020 Ferran Recio <ferran@moodle.com>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-use tool_migratehvp2h5p\api;
+use tool_migratehvp2026\api;
 
 define('CLI_SCRIPT', true);
 
@@ -67,7 +67,7 @@ Options:
                            Already migrated activities will be ignored.
 
 Example:
-\$sudo -u www-data /usr/bin/php admin/tool/migratehvp2h5p/cli/migrate.php --execute
+\$sudo -u www-data /usr/bin/php admin/tool/migratehvp2026/cli/migrate.php --execute
 
 EOT;
 
@@ -160,7 +160,7 @@ foreach ($activities as $hvpid => $info) {
         continue;
     }
     try {
-        $messages = tool_migratehvp2h5p\api::migrate_hvp2h5p($hvpid, $keeporiginal, $copy2cb);
+        $messages = tool_migratehvp2026\api::migrate_hvp2h5p($hvpid, $keeporiginal, $copy2cb);
         if (empty($messages)) {
             mtrace("\t ...Successful\n");
         } else {

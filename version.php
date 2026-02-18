@@ -17,19 +17,19 @@
 /**
  * Plugin version and other meta-data are defined here.
  *
- * @package     tool_migratehvp2h5p
- * @copyright   2020 Sara Arjona <sara@moodle.com>
+ * @package     tool_migratehvp2026
+ * @copyright   2026 Andreas Giesen (fork, based on original work by Sara Arjona <sara@moodle.com>)
  * @license     http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
 defined('MOODLE_INTERNAL') || die();
 
-$plugin->component = 'tool_migratehvp2h5p';
-$plugin->release = '0.2.0';
-$plugin->version = 2025093000;
-$plugin->requires = 2025041400;
-$plugin->maturity = MATURITY_STABLE;
+$plugin->component = 'tool_migratehvp2026';
+$plugin->release = '0.7';
+$plugin->version = 2026021800;
+$plugin->requires = 2024100700;
+$plugin->maturity = MATURITY_BETA;
 $plugin->dependencies = [
-    'mod_h5pactivity' => 2025041400,
+    'mod_h5pactivity' => 2024100700,
     'mod_hvp' => 2020020500,
 ];

@@ -15,15 +15,15 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Defines privacy provider from tool migratehvp2h5p.
+ * Defines privacy provider from tool migratehvp2026.
  *
- * @package     tool_migratehvp2h5p
+ * @package     tool_migratehvp2026
  * @category    privacy
  * @copyright   2020 Sara Arjona <sara@moodle.com>
  * @license     http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-namespace tool_migratehvp2h5p\privacy;
+namespace tool_migratehvp2026\privacy;
 
 /**
  * Privacy API implementation for the Migrate content from mod_hvp to mod_h5pactivity plugin.

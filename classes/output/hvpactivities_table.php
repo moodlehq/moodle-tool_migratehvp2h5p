@@ -17,14 +17,14 @@
 /**
  * View HVP activities to migrate.
  *
- * @package     tool_migratehvp2h5p
+ * @package     tool_migratehvp2026
  * @copyright   2020 Sara Arjona <sara@moodle.com>
  * @license     http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-namespace tool_migratehvp2h5p\output;
+namespace tool_migratehvp2026\output;
 
-use tool_migratehvp2h5p\api;
+use tool_migratehvp2026\api;
 use core\output\checkbox_toggleall;
 use html_writer;
 use moodle_url;
@@ -39,11 +39,32 @@ require_once($CFG->dirroot.'/lib/tablelib.php');
 /**
  * Class hvpactivities_table
  *
- * @package     tool_migratehvp2h5p
+ * @package     tool_migratehvp2026
  * @copyright   2020 Sara Arjona <sara@moodle.com>
  * @license     http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class hvpactivities_table extends table_sql {
+
+    /** @var int Selected course id to filter by. */
+    public $filtercourseid = 0;
+
+    /** @var string Selected content type (machine name) to filter by. */
+    public $filtercontenttype = '';
+
+    /** @var int Number of records per page. */
+    public $filterperpage = 50;
+
+    /** @var int Action selected for original HVP after migration. */
+    public $keeporiginal = api::HIDEORIGINAL;
+
+    /** @var int Action selected for content bank copy. */
+    public $copy2cb = api::COPY2CBYESWITHLINK;
+
+    /** @var string Suffix to append to hidden original HVP activities. */
+    public $hidesuffix = '';
+
+    /** @var int Whether visibility/availability settings should be preserved. */
+    public $preserveavailability = 1;
 
     /**
      * Constructor.
@@ -51,9 +72,9 @@ class hvpactivities_table extends table_sql {
      */
     public function __construct() {
         global $PAGE;
-        parent::__construct('tool_migratehvp2h5p_hvpactivities_table');
+        parent::__construct('tool_migratehvp2026_hvpactivities_table');
 
-        $this->define_baseurl('admin/tool/migratehvp2h5p/index.php');
+        $this->define_baseurl('admin/tool/migratehvp2026/index.php');
 
         // Define columns in the table.
         $this->define_table_columns();
@@ -77,18 +98,20 @@ class hvpactivities_table extends table_sql {
 
         $columnheaders = [
             'select' => $checkbox,
-            'id' => get_string('id', 'tool_migratehvp2h5p'),
+            'id' => get_string('id', 'tool_migratehvp2026'),
             'course' => get_string('course'),
+            'category' => get_string('category'),
             'name' => get_string('name'),
-            'contenttype' => get_string('contenttype', 'tool_migratehvp2h5p'),
-            'graded' => get_string('graded', 'tool_migratehvp2h5p'),
-            'attempted' => get_string('attempted', 'tool_migratehvp2h5p'),
-            'savedstate' => get_string('savedstate', 'tool_migratehvp2h5p'),
+            'contenttype' => get_string('contenttype', 'tool_migratehvp2026'),
+            'graded' => get_string('graded', 'tool_migratehvp2026'),
+            'attempted' => get_string('attempted', 'tool_migratehvp2026'),
+            'savedstate' => get_string('savedstate', 'tool_migratehvp2026'),
         ];
 
         $this->define_columns(array_keys($columnheaders));
         $this->define_headers(array_values($columnheaders));
         $this->column_class(array_search('id', $columnheaders), 'd-none d-sm-table-cell');
+        $this->column_class(array_search('category', $columnheaders), 'd-none d-sm-table-cell');
         $this->column_class(array_search('contenttype', $columnheaders), 'd-none d-sm-table-cell');
         $this->column_class(array_search('graded', $columnheaders), 'd-none d-md-table-cell');
         $this->column_class(array_search('attempted', $columnheaders), 'd-none d-md-table-cell');
@@ -127,7 +150,7 @@ class hvpactivities_table extends table_sql {
             'id' => "select-activity-{$data->id}",
             'name' => "activityids[{$data->id}]",
             'value' => $data->id,
-            'title' => get_string('selecthvpactivity', 'tool_migratehvp2h5p', $data->name),
+            'title' => get_string('selecthvpactivity', 'tool_migratehvp2026', $data->name),
         ], false);
         return $OUTPUT->render($selectallcheckbox);
 
@@ -194,7 +217,13 @@ class hvpactivities_table extends table_sql {
         // Add order by if needed.
         $sort = ($count) ? null : $this->get_sql_sort();
 
-        list($sql, $params) = api::get_sql_hvp_to_migrate($count, $sort);
+        list($sql, $params) = api::get_sql_hvp_to_migrate(
+            $count,
+            $sort,
+            null,
+            $this->filtercourseid,
+            $this->filtercontenttype
+        );
 
         return [$sql, $params];
     }
@@ -229,7 +258,7 @@ class hvpactivities_table extends table_sql {
         echo $this->render_reset_button();
         $this->print_initials_bar();
 
-        $message = get_string('nohvpactivities', 'tool_migratehvp2h5p');
+        $message = get_string('nohvpactivities', 'tool_migratehvp2026');
         echo $OUTPUT->notification($message, 'warning');
     }
 }

@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<XMLDB PATH="admin/tool/migratehvp2026/db" VERSION="2026021800" COMMENT="XMLDB file for Moodle admin/tool/migratehvp2026"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:noNamespaceSchemaLocation="https://moodle.org/xmldb/xmldb.xsd"
+>
+    <TABLES>
+        <TABLE NAME="tool_migratehvp2026_map" COMMENT="Migration status map from mod_hvp to mod_h5pactivity">
+            <FIELDS>
+                <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+                <FIELD NAME="hvpid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"
+                    COMMENT="Original mod_hvp activity id"/>
+                <FIELD NAME="h5pid" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"
+                    COMMENT="Migrated mod_h5pactivity id"/>
+                <FIELD NAME="status" TYPE="char" LENGTH="20" NOTNULL="true" SEQUENCE="false"
+                    COMMENT="Migration status: started/completed/failed"/>
+                <FIELD NAME="message" TYPE="text" NOTNULL="false" SEQUENCE="false"
+                    COMMENT="Optional status or error message"/>
+                <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+                <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+            </FIELDS>
+            <KEYS>
+                <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+            </KEYS>
+            <INDEXES>
+                <INDEX NAME="hvpid_uix" UNIQUE="true" FIELDS="hvpid"/>
+                <INDEX NAME="status_ix" UNIQUE="false" FIELDS="status"/>
+                <INDEX NAME="h5pid_ix" UNIQUE="false" FIELDS="h5pid"/>
+            </INDEXES>
+        </TABLE>
+    </TABLES>
+</XMLDB>

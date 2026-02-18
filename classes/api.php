@@ -17,11 +17,11 @@
 /**
  * Class containing helper methods for processing mod_hvp migrations.
  *
- * @package     tool_migratehvp2h5p
+ * @package     tool_migratehvp2026
  * @copyright   2020 Sara Arjona <sara@moodle.com>
  * @license     http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-namespace tool_migratehvp2h5p;
+namespace tool_migratehvp2026;
 
 defined('MOODLE_INTERNAL') || die;
 
@@ -44,7 +44,7 @@ use core_plugin_manager;
 use core\output\notification;
 use mod_h5pactivity\local\attempt;
 use core_competency\api as competencyapi;
-use tool_migratehvp2h5p\event\hvp_migrated;
+use tool_migratehvp2026\event\hvp_migrated;
 /**
  * Class containing helper methods for processing mod_hvp migrations.
  *
@@ -52,6 +52,15 @@ use tool_migratehvp2h5p\event\hvp_migrated;
  * @license     http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class api {
+
+    /** @var string Migration status: started. */
+    public const MIGRATION_STARTED = 'started';
+
+    /** @var string Migration status: completed. */
+    public const MIGRATION_COMPLETED = 'completed';
+
+    /** @var string Migration status: failed. */
+    public const MIGRATION_FAILED = 'failed';
 
     /** @var int Value to indicate the original hvp activity must be deleted after migration */
     public const DELETEORIGINAL = 0;
@@ -83,13 +92,17 @@ class api {
     public static function migrate_hvp2h5p(
         int $hvpid,
         int $keeporiginal = self::KEEPORIGINAL,
-        int $copy2cb = self::COPY2CBYESWITHLINK
+        int $copy2cb = self::COPY2CBYESWITHLINK,
+        string $hidesuffix = '',
+        int $preserveavailability = 1
     ): array {
         global $DB;
 
         self::check_requirements($copy2cb);
+        self::set_migration_status($hvpid, self::MIGRATION_STARTED);
 
         $messages = [];
+        $h5pactivityid = 0;
         $transaction = $DB->start_delegated_transaction();
 
         try {
@@ -102,10 +115,11 @@ class api {
             $hvp->cm = $DB->get_record('course_modules', $params, '*', MUST_EXIST);
 
             // Create mod_h5pactivity.
-            $h5pactivity = self::create_mod_h5pactivity($hvp, $hvpgradeitem, $copy2cb);
+            $h5pactivity = self::create_mod_h5pactivity($hvp, $hvpgradeitem, $copy2cb, $preserveavailability);
             if (empty($h5pactivity)) {
-                throw new moodle_exception('cannot_migrate', 'tool_migratehvp2h5p');
+                throw new moodle_exception('cannot_migrate', 'tool_migratehvp2026');
             }
+            $h5pactivityid = $h5pactivity->id;
 
             // Create attempt.
             self::create_h5pactivity_attempts($hvpid, $h5pactivity->cm);
@@ -128,12 +142,12 @@ class api {
                         // and display a warning message about this.
                         $tmpkeeporiginal = self::HIDEORIGINAL;
                         $messages[] = [
-                            get_string('migrate_gradesoverridden_notdelete', 'tool_migratehvp2h5p', $params),
+                            get_string('migrate_gradesoverridden_notdelete', 'tool_migratehvp2026', $params),
                             notification::NOTIFY_WARNING,
                         ];
                     } else {
                         $messages[] = [
-                            get_string('migrate_gradesoverridden', 'tool_migratehvp2h5p', $params),
+                            get_string('migrate_gradesoverridden', 'tool_migratehvp2026', $params),
                             notification::NOTIFY_WARNING,
                         ];
                     }
@@ -142,7 +156,7 @@ class api {
 
             self::trigger_migration_event($hvp, $h5pactivity);
 
-            self::finish_migration($hvp, $tmpkeeporiginal);
+            self::finish_migration($hvp, $tmpkeeporiginal, $hidesuffix);
 
         } catch (moodle_exception $e) {
 
@@ -152,9 +166,12 @@ class api {
                 // Catch the re-thrown exception.
                 throw $rollbackexception;
             }
+
+            self::set_migration_status($hvpid, self::MIGRATION_FAILED, 0, $e->getMessage());
             throw $e;
         }
         $transaction->allow_commit();
+        self::set_migration_status($hvpid, self::MIGRATION_COMPLETED, $h5pactivityid);
 
         return $messages;
     }
@@ -170,19 +187,19 @@ class api {
     public static function check_requirements(int $copy2cb) {
         $plugins = core_plugin_manager::instance()->get_enabled_plugins('mod');
         if (!array_key_exists('h5pactivity', $plugins)) {
-            throw new moodle_exception('error_modh5pactivity_disabled', 'tool_migratehvp2h5p');
+            throw new moodle_exception('error_modh5pactivity_disabled', 'tool_migratehvp2026');
         }
 
         $contentbanktypes = core_plugin_manager::instance()->get_enabled_plugins('contenttype');
         if ($copy2cb != self::COPY2CBNO && !array_key_exists('h5p', $contentbanktypes)) {
-            throw new moodle_exception('error_contenttypeh5p_disabled', 'tool_migratehvp2h5p');
+            throw new moodle_exception('error_contenttypeh5p_disabled', 'tool_migratehvp2026');
         }
     }
 
     /**
      * Return the SQL to select the hvp activies pending to migrate.
      *
-     * This method is used by tool_migratehvp2h5p\output\hvpactivities_table and by
+     * This method is used by tool_migratehvp2026\output\hvpactivities_table and by
      * the CLI migrate.php command. The SQL is quite complex so having it in one place
      * is a good idea.
      *
@@ -195,23 +212,29 @@ class api {
     public static function get_sql_hvp_to_migrate(
         bool $count = false,
         ?string $sort = null,
-        ?array $libraryids = null
+        ?array $libraryids = null,
+        int $courseid = 0,
+        string $contenttype = ''
     ): array {
+        global $DB;
 
         self::fix_duplicated_hvp();
 
+        $dbman = $DB->get_manager();
+        $maptableexists = $dbman->table_exists(new \xmldb_table('tool_migratehvp2026_map'));
+
         $params = [];
         if ($count) {
-            $select = "COUNT(1)";
+            $select = 'COUNT(DISTINCT h.id)';
             $groupby = '';
         } else {
-            $select = 'h.id, h.course as courseid, c.fullname as course, h.name, hl.machine_name as contenttype,' .
-            'COUNT(hc.id) as savedstate, cm.id as instanceid';
-            $groupby = 'GROUP BY h.id, h.course, c.fullname, h.name, hl.machine_name, cm.id';
+            $select = 'h.id, h.course as courseid, c.fullname as course, cc.name as category, h.name, ' .
+                'hl.machine_name as contenttype, COUNT(hc.id) as savedstate, cm.id as instanceid';
+            $groupby = 'GROUP BY h.id, h.course, c.fullname, cc.name, h.name, hl.machine_name, cm.id';
         }
 
         // Get only mod_hvp contents with main library in libraryids (if defined).
-        $where = 'mgr.id IS NULL';
+        $where = $maptableexists ? 'mm.id IS NULL' : 'mgr.id IS NULL';
         if (!empty($libraryids)) {
             $i = 1;
             foreach ($libraryids as $libraryid) {
@@ -231,8 +254,34 @@ class api {
             }
         }
 
+        if ($courseid > 0) {
+            $where .= ' AND h.course = :courseid';
+            $params['courseid'] = $courseid;
+        }
+
+        if ($contenttype !== '') {
+            $where .= ' AND hl.machine_name = :contenttype';
+            $params['contenttype'] = $contenttype;
+        }
+
         // We need to select the hvp activities which are not migrated but ignoring the activities in the recycle bin.
-        // The most efficient way seems to have a subtable with all non-delete h5p activities.
+        // If the migration map table exists, use it as the source of truth. Otherwise, fallback to legacy heuristic.
+        $migrationjoin = '';
+        if ($maptableexists) {
+            $migrationjoin = "LEFT JOIN {tool_migratehvp2026_map} mm
+                    ON mm.hvpid = h.id AND mm.status = :migrationstatuscompleted";
+            $params['migrationstatuscompleted'] = self::MIGRATION_COMPLETED;
+        } else {
+            $migrationjoin = "LEFT JOIN (
+                             SELECT i.id, i.name, i.timecreated, i.course
+                             FROM {h5pactivity} i
+                             JOIN {modules} m2 ON m2.name = 'h5pactivity'
+                             JOIN {course_modules} mgrcm ON mgrcm.module = m2.id AND i.course = mgrcm.course
+                                 AND i.id = mgrcm.instance AND mgrcm.deletioninprogress = 0
+                       ) mgr
+                       ON mgr.name = h.name AND mgr.timecreated = h.timecreated AND mgr.course = h.course";
+        }
+
         $sql = "SELECT $select
                   FROM {hvp} h
                   JOIN {hvp_libraries} hl ON h.main_library_id = hl.id
@@ -241,14 +290,8 @@ class api {
                   JOIN {course_modules} cm ON cm.module = m.id AND h.course = cm.course
                        AND h.id = cm.instance AND cm.deletioninprogress = 0
                   JOIN {course} c ON c.id = h.course
-                  LEFT JOIN (
-                             SELECT i.id, i.name, i.timecreated, i.course
-                             FROM {h5pactivity} i
-                             JOIN {modules} m2 ON m2.name = 'h5pactivity'
-                             JOIN {course_modules} mgrcm ON mgrcm.module = m2.id AND i.course = mgrcm.course
-                                 AND i.id = mgrcm.instance AND mgrcm.deletioninprogress = 0
-                       ) mgr
-                       ON mgr.name = h.name AND mgr.timecreated = h.timecreated AND mgr.course = h.course
+                  JOIN {course_categories} cc ON cc.id = c.category
+                  $migrationjoin
                  WHERE $where
                        $groupby";
 
@@ -307,7 +350,8 @@ class api {
     private static function create_mod_h5pactivity(
         stdClass $hvp,
         stdClass $hvpgradeitem,
-        int $copy2cb
+        int $copy2cb,
+        int $preserveavailability
     ): ?stdClass {
         global $CFG, $DB;
 
@@ -341,7 +385,7 @@ class api {
         $h5pmodule = $DB->get_record('modules', ['name' => 'h5pactivity'], '*', MUST_EXIST);
         $params = ['module' => $hvpmodule->id, 'instance' => $hvp->id];
         $hvpcm = $DB->get_record('course_modules', $params, '*', MUST_EXIST);
-        $h5pactivity->cm = self::duplicate_course_module($hvpcm, $h5pmodule->id);
+        $h5pactivity->cm = self::duplicate_course_module($hvpcm, $h5pmodule->id, $preserveavailability);
         $h5pactivity->coursemodule = $h5pactivity->cm->id;
         $h5pactivity->module = $h5pmodule->id;
         $h5pactivity->modulename = $h5pmodule->name;
@@ -364,7 +408,7 @@ class api {
         $h5pactivity->gradeitem = self::duplicate_grade_item($hvpgradeitem, $h5pactivity);
 
         // Update couse_module information.
-        self::add_course_module_to_section($hvpcm, $h5pactivity->cm->id);
+        self::add_course_module_to_section($hvpcm, $h5pactivity->cm->id, $preserveavailability);
 
         self::copy_tags($hvpcm, $h5pactivity);
         self::copy_competencies($hvpcm, $h5pactivity);
@@ -642,14 +686,14 @@ class api {
      * @param int $moduleid The id of the new h5pactivity module
      * @return stdClass The new course module for the mod_h5pactivity.
      */
-    private static function duplicate_course_module(stdClass $cm, int $moduleid): stdClass {
+    private static function duplicate_course_module(stdClass $cm, int $moduleid, int $preserveavailability): stdClass {
         global $CFG;
 
         $newcm = new stdClass();
         $newcm->course = $cm->course;
         $newcm->module = $moduleid;
-        $newcm->visible = $cm->visible;
-        $newcm->visibleoncoursepage = $cm->visibleoncoursepage;
+        $newcm->visible = $preserveavailability ? $cm->visible : 1;
+        $newcm->visibleoncoursepage = $preserveavailability ? $cm->visibleoncoursepage : 1;
         $newcm->section = $cm->section;
         $newcm->score = $cm->score;
         $newcm->indent = $cm->indent;
@@ -659,7 +703,7 @@ class api {
         $newcm->completiongradeitemnumber = $cm->completiongradeitemnumber;
         $newcm->completionview = $cm->completionview;
         $newcm->completionexpected = $cm->completionexpected;
-        if (!empty($CFG->enableavailability)) {
+        if ($preserveavailability && !empty($CFG->enableavailability)) {
             $newcm->availability = $cm->availability;
         }
         $newcm->showdescription = $cm->showdescription;
@@ -676,7 +720,11 @@ class api {
      * @param int $h5pcmid
      * @return stdClass|null The course module object for the h5pactivity.
      */
-    private static function add_course_module_to_section(stdClass $hvpcm, int $h5pcmid): ?stdClass {
+    private static function add_course_module_to_section(
+        stdClass $hvpcm,
+        int $h5pcmid,
+        int $preserveavailability
+    ): ?stdClass {
         global $DB;
 
         $h5pcm = get_coursemodule_from_id('', $h5pcmid, $hvpcm->course);
@@ -690,8 +738,16 @@ class api {
 
         $h5pcm->section = course_add_cm_to_section($h5pcm->course, $h5pcm->id, $section->section, $hvpcm->id);
 
-        // Make sure visibility is set correctly.
-        set_coursemodule_visible($h5pcm->id, $h5pcm->visible);
+        // Make sure visibility and availability are set correctly.
+        if ($preserveavailability) {
+            set_coursemodule_visible($h5pcm->id, $hvpcm->visible);
+            $updaterecord = (object) [
+                'id' => $h5pcm->id,
+                'visibleoncoursepage' => $hvpcm->visibleoncoursepage,
+            ];
+            $updaterecord->availability = $hvpcm->availability;
+            $DB->update_record('course_modules', $updaterecord);
+        }
 
         return $h5pcm;
     }
@@ -897,7 +953,7 @@ class api {
      * @param int $keeporiginal 0 delete the original hvp, 1 keep it, 2 hides it
      * @return bool if the activity was migrated
      */
-    public static function finish_migration(stdClass $hvp, int $keeporiginal): void {
+    public static function finish_migration(stdClass $hvp, int $keeporiginal, string $hidesuffix = ''): void {
         global $DB;
         $hvpmodule = $DB->get_record('modules', ['name' => 'hvp'], '*', MUST_EXIST);
         $params = ['module' => $hvpmodule->id, 'instance' => $hvp->id];
@@ -908,9 +964,75 @@ class api {
                 // background work such as recycle bin.
                 course_delete_module($hvpcmid, true);
                 break;
+            case self::KEEPORIGINAL:
+                self::update_original_name_suffix($hvp, $hidesuffix);
+                break;
             case self::HIDEORIGINAL:
+                self::update_original_name_suffix($hvp, $hidesuffix);
                 set_coursemodule_visible($hvpcmid, 0);
                 break;
+        }
+    }
+
+    /**
+     * Update original HVP activity name with a suffix.
+     *
+     * @param stdClass $hvp The mod_hvp activity.
+     * @param string $suffix The suffix to append.
+     */
+    private static function update_original_name_suffix(stdClass $hvp, string $suffix): void {
+        global $DB;
+
+        if (empty($suffix)) {
+            return;
+        }
+
+        $newname = trim($hvp->name . ' ' . $suffix);
+        if ($newname !== $hvp->name) {
+            $hvp->name = \core_text::substr($newname, 0, 255);
+            $DB->set_field('hvp', 'name', $hvp->name, ['id' => $hvp->id]);
+        }
+    }
+
+    /**
+     * Store migration status for an HVP activity.
+     *
+     * @param int $hvpid HVP activity id.
+     * @param string $status Migration status.
+     * @param int $h5pid Migrated H5P activity id.
+     * @param string $message Optional status message.
+     */
+    private static function set_migration_status(
+        int $hvpid,
+        string $status,
+        int $h5pid = 0,
+        string $message = ''
+    ): void {
+        global $DB;
+
+        $dbman = $DB->get_manager();
+        $table = new \xmldb_table('tool_migratehvp2026_map');
+        if (!$dbman->table_exists($table)) {
+            return;
+        }
+
+        $now = time();
+        $record = $DB->get_record('tool_migratehvp2026_map', ['hvpid' => $hvpid]);
+
+        $data = (object) [
+            'hvpid' => $hvpid,
+            'h5pid' => empty($h5pid) ? null : $h5pid,
+            'status' => $status,
+            'message' => $message,
+            'timemodified' => $now,
+        ];
+
+        if ($record) {
+            $data->id = $record->id;
+            $DB->update_record('tool_migratehvp2026_map', $data);
+        } else {
+            $data->timecreated = $now;
+            $DB->insert_record('tool_migratehvp2026_map', $data);
         }
     }
 }

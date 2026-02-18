@@ -14,9 +14,9 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
-namespace tool_migratehvp2h5p;
+namespace tool_migratehvp2026;
 
-use tool_migratehvp2h5p\api;
+use tool_migratehvp2026\api;
 use advanced_testcase;
 use stdClass;
 use stored_file;
@@ -24,11 +24,11 @@ use stored_file;
 /**
  * Tests for determining the author of the HVP instances when importing to H5Pactivity
  *
- * @package    tool_migratehvp2h5p
+ * @package    tool_migratehvp2026
  * @category   test
  * @copyright  2021 Jonathan Harker <jonathan@catalyst.net.nz>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- * @coversDefaultClass \tool_migratehvp2h5p\api
+ * @coversDefaultClass \tool_migratehvp2026\api
  */
 final class author_test extends advanced_testcase {
 
