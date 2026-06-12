@@ -172,6 +172,21 @@ class hvpactivities_table extends table_sql {
     }
 
     /**
+     * The course name and shortname with link to course
+     *
+     * @param stdClass $data
+     * @return string
+     * @throws \moodle_exception
+     * @throws \coding_exception
+     */
+    public function col_course(stdClass $data): string {
+        $courseurl = new moodle_url('/course/view.php', ['id' => $data->courseid]);
+        $visibleclass = $data->coursevisible ? '' : ' dimmed_text';
+        return html_writer::link($courseurl, format_string($data->course), ['class' => $visibleclass]) .
+            ' <br><small>' . format_string($data->shortname) . '</small>';
+    }
+
+    /**
      * The name column, to add a link to the HVP activity.
      *
      * @param stdClass $data The row data.
