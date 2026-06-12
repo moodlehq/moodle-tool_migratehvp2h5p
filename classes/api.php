@@ -205,9 +205,10 @@ class api {
             $select = "COUNT(1)";
             $groupby = '';
         } else {
-            $select = 'h.id, h.course as courseid, c.fullname as course, h.name, hl.machine_name as contenttype,' .
-            'COUNT(hc.id) as savedstate, cm.id as instanceid';
-            $groupby = 'GROUP BY h.id, h.course, c.fullname, h.name, hl.machine_name, cm.id';
+            $select = 'h.id, h.course as courseid, c.fullname as course, c.shortname as shortname, c.visible as coursevisible,
+                h.name, hl.machine_name as contenttype,' .
+                'COUNT(hc.id) as savedstate, cm.id as instanceid';
+            $groupby = 'GROUP BY h.id, h.course, c.fullname, c.shortname, c.visible, h.name, hl.machine_name, cm.id';
         }
 
         // Get only mod_hvp contents with main library in libraryids (if defined).
