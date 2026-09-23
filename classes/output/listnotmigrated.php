@@ -61,6 +61,7 @@ class listnotmigrated implements renderable, templatable {
     public function export_for_template(renderer_base $output): stdClass {
         $data = (object)[
             'formaction' => 'index.php',
+            'sesskey' => sesskey(),
             'settings' => [
                 [
                     'name' => 'keeporiginal',

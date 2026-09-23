@@ -50,6 +50,7 @@ admin_externalpage_setup('migratehvp2h5p');
 
 $notices = [];
 if (!empty($activityids)) {
+    require_sesskey();
     foreach ($activityids as $activityid) {
         try {
             $messages = api::migrate_hvp2h5p($activityid, $keeporiginal, $copy2cb);
