@@ -185,6 +185,16 @@ class hvpactivities_table extends table_sql {
     }
 
     /**
+     * The course column, formatted as the course full name.
+     *
+     * @param stdClass $data The row data.
+     * @return string
+     */
+    public function col_course(stdClass $data): string {
+        return format_string($data->course, true, ['context' => \context_course::instance($data->courseid)]);
+    }
+
+    /**
      * Builds the SQL query.
      *
      * @param  bool $count When true, return the count SQL.
