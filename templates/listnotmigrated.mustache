@@ -32,6 +32,7 @@
     {
         "hvpactivities": "<table><tr><td>This is the table where the list of HVP activities will be rendered</td></tr></table>",
         "formaction": "#",
+        "sesskey": "abcdef1234",
         "settings": [
             {
                 "name": "examplefield",
@@ -52,6 +53,7 @@
 
 }}
 <form action="{{formaction}}" method="post" id="migratehvp2h5pform">
+    <input type="hidden" name="sesskey" value="{{sesskey}}">
     <div data-region="hvpactivities">
         <div class="mt-1 mb-1" data-region="hvp-activities-table">
             {{{hvpactivities}}}
